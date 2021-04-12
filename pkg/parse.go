@@ -12,13 +12,6 @@ import (
 	parser "github.com/yunhailuo/wdlparser/pkg/wdlv1_1"
 )
 
-// WDLSyntaxError is used to store WDL error line, column and details of a
-// syntax error
-type WDLSyntaxError struct {
-	line, column int
-	msg          string
-}
-
 type wdlv1_1Listener struct {
 	*parser.BaseWdlV1_1ParserListener
 	wdl               *WDL
@@ -87,19 +80,6 @@ func (l *wdlv1_1Listener) EnterTask(ctx *parser.TaskContext) {
 
 func (l *wdlv1_1Listener) ExitTask(ctx *parser.TaskContext) {
 	l.currentWDLScope = l.currentWDLScope.GetParent()
-}
-
-type wdlErrorListener struct {
-	*antlr.DiagnosticErrorListener
-	syntaxErrors []WDLSyntaxError
-}
-
-func newWdlErrorListener(exactOnly bool) *wdlErrorListener {
-	return &wdlErrorListener{antlr.NewDiagnosticErrorListener(exactOnly), nil}
-}
-
-func (l *wdlErrorListener) SyntaxError(recognizer antlr.Recognizer, offendingSymbol interface{}, line, column int, msg string, e antlr.RecognitionException) {
-	l.syntaxErrors = append(l.syntaxErrors, WDLSyntaxError{line, column, msg})
 }
 
 // Antlr4Parse parse a WDL document into WDL
