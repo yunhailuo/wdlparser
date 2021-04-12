@@ -52,18 +52,6 @@ func (s BaseScope) Resolve(name string) (Symbol, error) {
 	return *new(Symbol), fmt.Errorf("%v not defined", name)
 }
 
-// ruleScope is designed to be temporary and used only for collecting
-// information from subrules in ANTLR4 parser grammar
-type ruleScope struct {
-	BaseScope
-}
-
-func newRuleScope() *ruleScope {
-	scp := new(ruleScope)
-	scp.SymbolMap = make(map[string]Symbol)
-	return scp
-}
-
 // WDL represnets a parsed WDL document.
 // It is also the global scope of a parsing
 type WDL struct {

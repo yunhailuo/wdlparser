@@ -14,9 +14,8 @@ import (
 
 type wdlv1_1Listener struct {
 	*parser.BaseWdlV1_1ParserListener
-	wdl               *WDL
-	currentWDLScope   Scope
-	currentANTLRScope Scope
+	wdl          *WDL
+	currentScope Scope
 }
 
 func newWdlv1_1Listener(wdlPath string) *wdlv1_1Listener {
@@ -29,57 +28,59 @@ func (l *wdlv1_1Listener) EnterVersion(ctx *parser.VersionContext) {
 }
 
 func (l *wdlv1_1Listener) EnterImport_doc(ctx *parser.Import_docContext) {
-	ruleScp := newRuleScope()
-	ruleScp.Parent = l.currentANTLRScope
-	l.currentANTLRScope = ruleScp
+	importPath := strings.Trim(ctx.R_string().GetText(), `"`)
+	importedWdl := NewImport(importPath)
+	importedWdl.Parent = l.currentScope
+	l.currentScope = importedWdl
 }
 
-func (l *wdlv1_1Listener) EnterImport_as(ctx *parser.Import_asContext) {
-	aliasSymbol := Symbol{Name: "alias", Value: ctx.Identifier().GetText()}
-	err := l.currentANTLRScope.Define(aliasSymbol)
-	if err != nil {
-		log.Fatal(err)
+func (l *wdlv1_1Listener) ExitImport_as(ctx *parser.Import_asContext) {
+	if importScope, ok := l.currentScope.(*Import); ok {
+		importScope.Alias = ctx.Identifier().GetText()
 	}
 }
 
 func (l *wdlv1_1Listener) ExitImport_doc(ctx *parser.Import_docContext) {
-	importPath := strings.Trim(ctx.R_string().GetText(), `"`)
-	importedWdl := NewImport(importPath)
-	aliasSymbol, err := l.currentANTLRScope.Resolve("alias")
-	if err != nil {
-		l.wdl.Imports[importedWdl.Name] = importedWdl
-	} else {
-		l.wdl.Imports[aliasSymbol.Value] = importedWdl
+	if importScope, ok := l.currentScope.(*Import); ok {
+		if importScope.Alias != "" {
+			l.wdl.Imports[importScope.Alias] = importScope
+		} else {
+			l.wdl.Imports[importScope.Name] = importScope
+		}
 	}
-	l.currentANTLRScope = l.currentANTLRScope.GetParent()
+	l.currentScope = l.currentScope.GetParent()
 }
 
 func (l *wdlv1_1Listener) EnterWorkflow(ctx *parser.WorkflowContext) {
 	workflow := NewWorkflow(ctx.Identifier().GetText())
-	workflow.Parent = l.currentWDLScope
-	l.currentWDLScope = workflow
+	workflow.Parent = l.currentScope
+	l.currentScope = workflow
 	for _, e := range ctx.AllWorkflow_element() {
 		workflow.Elements = append(workflow.Elements, e.GetText())
 	}
-	l.wdl.Workflow = workflow
 }
 
 func (l *wdlv1_1Listener) ExitWorkflow(ctx *parser.WorkflowContext) {
-	l.currentWDLScope = l.currentWDLScope.GetParent()
+	if workflowScope, ok := l.currentScope.(*Workflow); ok {
+		l.wdl.Workflow = workflowScope
+	}
+	l.currentScope = l.currentScope.GetParent()
 }
 
 func (l *wdlv1_1Listener) EnterTask(ctx *parser.TaskContext) {
 	task := NewTask(ctx.Identifier().GetText())
-	task.Parent = l.currentWDLScope
-	l.currentWDLScope = task
+	task.Parent = l.currentScope
+	l.currentScope = task
 	for _, e := range ctx.AllTask_element() {
 		task.Elements = append(task.Elements, e.GetText())
 	}
-	l.wdl.Tasks[task.Name] = task
 }
 
 func (l *wdlv1_1Listener) ExitTask(ctx *parser.TaskContext) {
-	l.currentWDLScope = l.currentWDLScope.GetParent()
+	if taskScope, ok := l.currentScope.(*Task); ok {
+		l.wdl.Tasks[taskScope.Name] = taskScope
+	}
+	l.currentScope = l.currentScope.GetParent()
 }
 
 // Antlr4Parse parse a WDL document into WDL
@@ -96,8 +97,7 @@ func Antlr4Parse(path string) (*WDL, []WDLSyntaxError) {
 	p.AddErrorListener(errorListener)
 	p.BuildParseTrees = true
 	listener := newWdlv1_1Listener(path)
-	listener.currentWDLScope = listener.wdl
-	listener.currentANTLRScope = newRuleScope()
+	listener.currentScope = listener.wdl
 	antlr.ParseTreeWalkerDefault.Walk(listener, p.Document())
 
 	return listener.wdl, errorListener.syntaxErrors
