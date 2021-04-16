@@ -5,6 +5,7 @@ source files. Language specifications can be found at https://github.com/openwdl
 package wdlparser
 
 import (
+	"fmt"
 	"log"
 	"strings"
 
@@ -37,6 +38,12 @@ func (l *wdlv1_1Listener) EnterImport_doc(ctx *parser.Import_docContext) {
 func (l *wdlv1_1Listener) ExitImport_as(ctx *parser.Import_asContext) {
 	if importScope, ok := l.currentScope.(*Import); ok {
 		importScope.Alias = ctx.Identifier().GetText()
+	} else {
+		ctx.GetParser().NotifyErrorListeners(
+			`extraneous "import as" outside import statements`,
+			ctx.GetStart(),
+			nil,
+		)
 	}
 }
 
@@ -47,6 +54,13 @@ func (l *wdlv1_1Listener) ExitImport_doc(ctx *parser.Import_docContext) {
 		} else {
 			l.wdl.Imports[importScope.Name] = importScope
 		}
+	} else {
+		log.Fatal(
+			fmt.Sprintf(
+				"Wrong scope at line %d:%d: expecting an import scope",
+				ctx.GetStart().GetLine(), ctx.GetStart().GetColumn(),
+			),
+		)
 	}
 	l.currentScope = l.currentScope.GetParent()
 }
