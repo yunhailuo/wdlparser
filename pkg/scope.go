@@ -67,12 +67,8 @@ func (s *Scope) Resolve(name string) (Symboler, error) {
 // It is also the global scope of a parsing
 type WDL struct {
 	ScopedSymbol
-	Path     string
-	Version  string
-	Imports  map[string]*Import
-	Structs  []string
-	Workflow *Workflow
-	Tasks    map[string]*Task
+	Path    string
+	Version string
 }
 
 func NewWDL(wdlPath string) *WDL {
@@ -80,25 +76,38 @@ func NewWDL(wdlPath string) *WDL {
 	wdl.Path = wdlPath
 	wdl.SetName(strings.TrimSuffix(path.Base(wdlPath), ".wdl"))
 	wdl.SetType("document")
-	wdl.Tasks = make(map[string]*Task)
+	wdl.symbolMap = make(map[string]Symboler)
 	return wdl
 }
 
-// Import represents a parsed import
-type Import struct {
-	ScopedSymbol
-	Wdl           *WDL
-	Alias         string
-	StructAliases map[string]string
+func (wdl WDL) GetImports() map[string]*WDL {
+	ret := map[string]*WDL{}
+	for k, sym := range wdl.symbolMap {
+		if w, ok := sym.(*WDL); ok {
+			ret[k] = w
+}
+	}
+	return ret
 }
 
-func NewImport(wdlPath string) *Import {
-	imp := new(Import)
-	imp.Wdl = NewWDL(wdlPath)
-	imp.Name = strings.TrimSuffix(path.Base(wdlPath), ".wdl")
-	imp.Type = "import"
-	imp.StructAliases = make(map[string]string)
-	return imp
+func (wdl WDL) GetWorkflow() map[string]*Workflow {
+	ret := map[string]*Workflow{}
+	for k, sym := range wdl.symbolMap {
+		if w, ok := sym.(*Workflow); ok {
+			ret[k] = w
+		}
+	}
+	return ret
+}
+
+func (wdl WDL) GetTask() map[string]*Task {
+	ret := map[string]*Task{}
+	for k, sym := range wdl.symbolMap {
+		if w, ok := sym.(*Task); ok {
+			ret[k] = w
+		}
+	}
+	return ret
 }
 
 // Workflow records one parsed workflow

@@ -30,17 +30,17 @@ func (l *wdlv1_1Listener) EnterVersion(ctx *parser.VersionContext) {
 
 func (l *wdlv1_1Listener) EnterImport_doc(ctx *parser.Import_docContext) {
 	importPath := strings.Trim(ctx.R_string().GetText(), `"`)
-	importedWdl := NewImport(importPath)
+	importedWdl := NewWDL(importPath)
 	importedWdl.SetParent(l.currentScope)
 	l.currentScope = importedWdl
 }
 
 func (l *wdlv1_1Listener) ExitImport_as(ctx *parser.Import_asContext) {
-	if importScope, ok := l.currentScope.(*Import); ok {
-		importScope.Alias = ctx.Identifier().GetText()
+	if importScope, ok := l.currentScope.(*WDL); ok {
+		importScope.SetName(ctx.Identifier().GetText())
 	} else {
 		ctx.GetParser().NotifyErrorListeners(
-			`extraneous "import as" outside import statements`,
+			`extraneous "import as" outside WDL import statements`,
 			ctx.GetStart(),
 			nil,
 		)
@@ -48,19 +48,20 @@ func (l *wdlv1_1Listener) ExitImport_as(ctx *parser.Import_asContext) {
 }
 
 func (l *wdlv1_1Listener) ExitImport_doc(ctx *parser.Import_docContext) {
-	if importScope, ok := l.currentScope.(*Import); ok {
-		if importScope.Alias != "" {
-			l.wdl.Imports[importScope.Alias] = importScope
-		} else {
-			l.wdl.Imports[importScope.Name] = importScope
-		}
-	} else {
+	parentScope := l.currentScope.GetParent()
+	importedWdl, ok := l.currentScope.(*WDL)
+	if (parentScope == nil) || !ok {
 		log.Fatal(
 			fmt.Sprintf(
-				"Wrong scope at line %d:%d: expecting an import scope",
+				"Wrong scope at line %d:%d: expecting a nested import scope",
 				ctx.GetStart().GetLine(), ctx.GetStart().GetColumn(),
 			),
 		)
+	} else {
+		err := parentScope.Define(importedWdl)
+		if err != nil {
+			log.Fatal(err)
+		}
 	}
 	l.currentScope = l.currentScope.GetParent()
 }
@@ -75,8 +76,20 @@ func (l *wdlv1_1Listener) EnterWorkflow(ctx *parser.WorkflowContext) {
 }
 
 func (l *wdlv1_1Listener) ExitWorkflow(ctx *parser.WorkflowContext) {
-	if workflowScope, ok := l.currentScope.(*Workflow); ok {
-		l.wdl.Workflow = workflowScope
+	parentScope := l.currentScope.GetParent()
+	workflow, ok := l.currentScope.(*Workflow)
+	if (parentScope == nil) || !ok {
+		log.Fatal(
+			fmt.Sprintf(
+				"Wrong scope at line %d:%d: expecting a nested workflow scope",
+				ctx.GetStart().GetLine(), ctx.GetStart().GetColumn(),
+			),
+		)
+	} else {
+		err := parentScope.Define(workflow)
+		if err != nil {
+			log.Fatal(err)
+		}
 	}
 	l.currentScope = l.currentScope.GetParent()
 }
@@ -91,8 +104,20 @@ func (l *wdlv1_1Listener) EnterTask(ctx *parser.TaskContext) {
 }
 
 func (l *wdlv1_1Listener) ExitTask(ctx *parser.TaskContext) {
-	if taskScope, ok := l.currentScope.(*Task); ok {
-		l.wdl.Tasks[taskScope.GetName()] = taskScope
+	parentScope := l.currentScope.GetParent()
+	task, ok := l.currentScope.(*Task)
+	if (parentScope == nil) || !ok {
+		log.Fatal(
+			fmt.Sprintf(
+				"Wrong scope at line %d:%d: expecting a nested task scope",
+				ctx.GetStart().GetLine(), ctx.GetStart().GetColumn(),
+			),
+		)
+	} else {
+		err := parentScope.Define(task)
+		if err != nil {
+			log.Fatal(err)
+		}
 	}
 	l.currentScope = l.currentScope.GetParent()
 }

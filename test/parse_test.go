@@ -55,18 +55,19 @@ func TestImport(t *testing.T) {
 			"Found %d errors in %q, expect no errors", len(err), inputPath,
 		)
 	}
-	if len(result.Imports) != 3 {
+	resultImports := result.GetImports()
+	if len(resultImports) != len(expectedImports) {
 		t.Errorf(
 			"Found %d imports in %q, expect %d",
-			len(result.Imports), inputPath, len(expectedImports),
+			len(resultImports), inputPath, len(expectedImports),
 		)
 	}
 	for expectedName, expectedPath := range expectedImports {
-		if wdl, ok := result.Imports[expectedName]; ok {
-			if wdl.Wdl.Path != expectedPath {
+		if wdl, ok := resultImports[expectedName]; ok {
+			if wdl.Path != expectedPath {
 				t.Errorf(
 					"Imported %q from URI %q, expect URI %q",
-					expectedName, wdl.Wdl.Path, expectedPath,
+					expectedName, wdl.Path, expectedPath,
 				)
 			}
 		} else {
@@ -85,16 +86,27 @@ func TestWorkflow(t *testing.T) {
 			"Found %d errors in %q, expect no errors", len(err), inputPath,
 		)
 	}
-	if result.Workflow.GetName() != expectedName {
+	resultWorkflows := result.GetWorkflow()
+	if len(resultWorkflows) != 1 {
 		t.Errorf(
-			"Got workflow %q, expect workflow %q",
-			result.Workflow.GetName(), expectedName,
+			"Found %d workflow in %q, expect 1 workflow",
+			len(resultWorkflows), inputPath,
 		)
 	}
-	if len(result.Workflow.Elements) != expectedElementCount {
+	var resultWorkflow *wdlparser.Workflow
+	for _, w := range resultWorkflows {
+		resultWorkflow = w
+	}
+	if resultWorkflow.GetName() != expectedName {
+		t.Errorf(
+			"Got workflow %q, expect workflow %q",
+			resultWorkflow.GetName(), expectedName,
+		)
+	}
+	if len(resultWorkflow.Elements) != expectedElementCount {
 		t.Errorf(
 			"Found %d workflow elements, expect %d",
-			len(result.Workflow.Elements), expectedElementCount,
+			len(resultWorkflow.Elements), expectedElementCount,
 		)
 	}
 }
@@ -110,8 +122,15 @@ func TestTask(t *testing.T) {
 			"Found %d errors in %q, expect no errors", len(err), inputPath,
 		)
 	}
+	resultTasks := result.GetTask()
+	if len(resultTasks) != len(expectedTaskElementCount) {
+		t.Errorf(
+			"Found %d Task in %q, expect %d",
+			len(resultTasks), inputPath, len(expectedTaskElementCount),
+		)
+	}
 	for expectedName, expectedElementCount := range expectedTaskElementCount {
-		if task, ok := result.Tasks[expectedName]; ok {
+		if task, ok := resultTasks[expectedName]; ok {
 			if len(task.Elements) != expectedElementCount {
 				t.Errorf(
 					"Found %d task elements, expect %d",
