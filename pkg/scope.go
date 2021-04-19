@@ -10,20 +10,20 @@ type Scoper interface {
 	GetParent() Scoper
 	SetParent(Scoper)
 	GetChildren() []Scoper
-	GetSymbolMap() map[string]Symbol
-	Define(Symbol) error
-	Resolve(string) (Symbol, error)
+	GetSymbolMap() map[string]Symboler
+	Define(Symboler) error
+	Resolve(string) (Symboler, error)
 }
 
 type Scope struct {
 	parent    Scoper
 	children  []Scoper
-	symbolMap map[string]Symbol
+	symbolMap map[string]Symboler
 }
 
 func NewScope() *Scope {
 	Scope := new(Scope)
-	Scope.symbolMap = make(map[string]Symbol)
+	Scope.symbolMap = make(map[string]Symboler)
 	return Scope
 }
 
@@ -39,28 +39,28 @@ func (s *Scope) GetChildren() []Scoper {
 	return s.children
 }
 
-func (s *Scope) GetSymbolMap() map[string]Symbol {
+func (s *Scope) GetSymbolMap() map[string]Symboler {
 	return s.symbolMap
 }
 
-func (s *Scope) Define(sym Symbol) error {
-	if sym.Name == "" {
+func (s *Scope) Define(sym Symboler) error {
+	if sym.GetName() == "" {
 		return fmt.Errorf("Symbol %v doesn't have a valid name", sym)
 	}
 	if s.symbolMap == nil {
 		return fmt.Errorf("SymbolMap of scope %v not initialized", s)
 	}
-	s.symbolMap[sym.Name] = sym
+	s.symbolMap[sym.GetName()] = sym
 	return nil
 }
-func (s *Scope) Resolve(name string) (Symbol, error) {
+func (s *Scope) Resolve(name string) (Symboler, error) {
 	if sym, ok := s.symbolMap[name]; ok {
 		return sym, nil
 	}
 	if s.GetParent() != nil {
 		return s.GetParent().Resolve(name)
 	}
-	return *new(Symbol), fmt.Errorf("%v not defined", name)
+	return new(Symbol), fmt.Errorf("%v not defined", name)
 }
 
 // WDL represnets a parsed WDL document.
@@ -78,9 +78,8 @@ type WDL struct {
 func NewWDL(wdlPath string) *WDL {
 	wdl := new(WDL)
 	wdl.Path = wdlPath
-	wdl.Name = strings.TrimSuffix(path.Base(wdlPath), ".wdl")
-	wdl.Type = "document"
-	wdl.Imports = make(map[string]*Import)
+	wdl.SetName(strings.TrimSuffix(path.Base(wdlPath), ".wdl"))
+	wdl.SetType("document")
 	wdl.Tasks = make(map[string]*Task)
 	return wdl
 }
@@ -110,9 +109,9 @@ type Workflow struct {
 
 func NewWorkflow(name string) *Workflow {
 	workflow := new(Workflow)
-	workflow.Name = name
-	workflow.Type = "workflow"
-	workflow.symbolMap = make(map[string]Symbol)
+	workflow.SetName(name)
+	workflow.SetType("workflow")
+	workflow.symbolMap = make(map[string]Symboler)
 	return workflow
 }
 
@@ -124,7 +123,7 @@ type Task struct {
 
 func NewTask(name string) *Task {
 	task := new(Task)
-	task.Name = name
-	task.Type = "task"
+	task.SetName(name)
+	task.SetType("task")
 	return task
 }

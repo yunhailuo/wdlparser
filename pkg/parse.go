@@ -92,7 +92,7 @@ func (l *wdlv1_1Listener) EnterTask(ctx *parser.TaskContext) {
 
 func (l *wdlv1_1Listener) ExitTask(ctx *parser.TaskContext) {
 	if taskScope, ok := l.currentScope.(*Task); ok {
-		l.wdl.Tasks[taskScope.Name] = taskScope
+		l.wdl.Tasks[taskScope.GetName()] = taskScope
 	}
 	l.currentScope = l.currentScope.GetParent()
 }

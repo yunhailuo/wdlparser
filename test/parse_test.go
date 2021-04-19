@@ -85,10 +85,10 @@ func TestWorkflow(t *testing.T) {
 			"Found %d errors in %q, expect no errors", len(err), inputPath,
 		)
 	}
-	if result.Workflow.Name != expectedName {
+	if result.Workflow.GetName() != expectedName {
 		t.Errorf(
 			"Got workflow %q, expect workflow %q",
-			result.Workflow.Name, expectedName,
+			result.Workflow.GetName(), expectedName,
 		)
 	}
 	if len(result.Workflow.Elements) != expectedElementCount {
