@@ -6,44 +6,55 @@ import (
 	"strings"
 )
 
-type Scope interface {
-	GetParent() Scope
-	GetChildren() []Scope
+type Scoper interface {
+	GetParent() Scoper
+	SetParent(Scoper)
+	GetChildren() []Scoper
 	GetSymbolMap() map[string]Symbol
 	Define(Symbol) error
 	Resolve(string) (Symbol, error)
 }
 
-type BaseScope struct {
-	Parent    Scope
-	Children  []Scope
-	SymbolMap map[string]Symbol
+type Scope struct {
+	parent    Scoper
+	children  []Scoper
+	symbolMap map[string]Symbol
 }
 
-func (s BaseScope) GetParent() Scope {
-	return s.Parent
+func NewScope() *Scope {
+	Scope := new(Scope)
+	Scope.symbolMap = make(map[string]Symbol)
+	return Scope
 }
 
-func (s BaseScope) GetChildren() []Scope {
-	return s.Children
+func (s *Scope) GetParent() Scoper {
+	return s.parent
 }
 
-func (s BaseScope) GetSymbolMap() map[string]Symbol {
-	return s.SymbolMap
+func (s *Scope) SetParent(parent Scoper) {
+	s.parent = parent
 }
 
-func (s BaseScope) Define(sym Symbol) error {
+func (s *Scope) GetChildren() []Scoper {
+	return s.children
+}
+
+func (s *Scope) GetSymbolMap() map[string]Symbol {
+	return s.symbolMap
+}
+
+func (s *Scope) Define(sym Symbol) error {
 	if sym.Name == "" {
 		return fmt.Errorf("Symbol %v doesn't have a valid name", sym)
 	}
-	if s.SymbolMap == nil {
+	if s.symbolMap == nil {
 		return fmt.Errorf("SymbolMap of scope %v not initialized", s)
 	}
-	s.SymbolMap[sym.Name] = sym
+	s.symbolMap[sym.Name] = sym
 	return nil
 }
-func (s BaseScope) Resolve(name string) (Symbol, error) {
-	if sym, ok := s.SymbolMap[name]; ok {
+func (s *Scope) Resolve(name string) (Symbol, error) {
+	if sym, ok := s.symbolMap[name]; ok {
 		return sym, nil
 	}
 	if s.GetParent() != nil {
@@ -101,6 +112,7 @@ func NewWorkflow(name string) *Workflow {
 	workflow := new(Workflow)
 	workflow.Name = name
 	workflow.Type = "workflow"
+	workflow.symbolMap = make(map[string]Symbol)
 	return workflow
 }
 

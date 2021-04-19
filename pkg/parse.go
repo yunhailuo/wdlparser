@@ -16,7 +16,7 @@ import (
 type wdlv1_1Listener struct {
 	*parser.BaseWdlV1_1ParserListener
 	wdl          *WDL
-	currentScope Scope
+	currentScope Scoper
 }
 
 func newWdlv1_1Listener(wdlPath string) *wdlv1_1Listener {
@@ -31,7 +31,7 @@ func (l *wdlv1_1Listener) EnterVersion(ctx *parser.VersionContext) {
 func (l *wdlv1_1Listener) EnterImport_doc(ctx *parser.Import_docContext) {
 	importPath := strings.Trim(ctx.R_string().GetText(), `"`)
 	importedWdl := NewImport(importPath)
-	importedWdl.Parent = l.currentScope
+	importedWdl.SetParent(l.currentScope)
 	l.currentScope = importedWdl
 }
 
@@ -67,7 +67,7 @@ func (l *wdlv1_1Listener) ExitImport_doc(ctx *parser.Import_docContext) {
 
 func (l *wdlv1_1Listener) EnterWorkflow(ctx *parser.WorkflowContext) {
 	workflow := NewWorkflow(ctx.Identifier().GetText())
-	workflow.Parent = l.currentScope
+	workflow.SetParent(l.currentScope)
 	l.currentScope = workflow
 	for _, e := range ctx.AllWorkflow_element() {
 		workflow.Elements = append(workflow.Elements, e.GetText())
@@ -83,7 +83,7 @@ func (l *wdlv1_1Listener) ExitWorkflow(ctx *parser.WorkflowContext) {
 
 func (l *wdlv1_1Listener) EnterTask(ctx *parser.TaskContext) {
 	task := NewTask(ctx.Identifier().GetText())
-	task.Parent = l.currentScope
+	task.SetParent(l.currentScope)
 	l.currentScope = task
 	for _, e := range ctx.AllTask_element() {
 		task.Elements = append(task.Elements, e.GetText())

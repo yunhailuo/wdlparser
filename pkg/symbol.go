@@ -7,9 +7,6 @@ type Symbol struct {
 }
 
 type ScopedSymbol struct {
-	BaseScope
+	Scope
 	Symbol
-	Parent    Scope
-	Children  []Scope
-	SymbolMap map[string]Symbol
 }
