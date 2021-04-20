@@ -1,42 +1,42 @@
 package wdlparser
 
-type Symboler interface {
+type symboler interface {
 	GetName() string
 	GetType() string
 	GetValue() interface{}
 }
 
-type Symbol struct {
+type symbol struct {
 	name  string
 	typ   string
 	value string
 }
 
-func (s *Symbol) GetName() string {
+func (s *symbol) GetName() string {
 	return s.name
 }
 
-func (s *Symbol) SetName(name string) {
+func (s *symbol) SetName(name string) {
 	s.name = name
 }
 
-func (s *Symbol) GetType() string {
+func (s *symbol) GetType() string {
 	return s.typ
 }
 
-func (s *Symbol) SetType(t string) {
+func (s *symbol) SetType(t string) {
 	s.typ = t
 }
 
-func (s *Symbol) GetValue() interface{} {
+func (s *symbol) GetValue() interface{} {
 	return s.value
 }
 
-func (s *Symbol) SetValue(val string) {
+func (s *symbol) SetValue(val string) {
 	s.value = val
 }
 
-type ScopedSymbol struct {
-	Scope
-	Symbol
+type scopedSymbol struct {
+	scope
+	symbol
 }

@@ -16,7 +16,7 @@ import (
 type wdlv1_1Listener struct {
 	*parser.BaseWdlV1_1ParserListener
 	wdl          *WDL
-	currentScope Scoper
+	currentScope scoper
 }
 
 func newWdlv1_1Listener(wdlPath string) *wdlv1_1Listener {
