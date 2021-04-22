@@ -45,10 +45,10 @@ func (s *scope) GetSymbolMap() map[string]symboler {
 
 func (s *scope) Define(sym symboler) error {
 	if sym.GetName() == "" {
-		return fmt.Errorf("Symbol %v doesn't have a valid name", sym)
+		return fmt.Errorf("symbol %v doesn't have a valid name", sym)
 	}
 	if s.symbolMap == nil {
-		return fmt.Errorf("SymbolMap of scope %v not initialized", s)
+		return fmt.Errorf("symbolMap of scope %v not initialized", s)
 	}
 	s.symbolMap[sym.GetName()] = sym
 	return nil
@@ -60,7 +60,7 @@ func (s *scope) Resolve(name string) (symboler, error) {
 	if s.GetParent() != nil {
 		return s.GetParent().Resolve(name)
 	}
-	return new(symbol), fmt.Errorf("%v not defined", name)
+	return nil, fmt.Errorf("%v not defined", name)
 }
 
 // WDL represnets a parsed WDL document.
@@ -113,7 +113,8 @@ func (wdl WDL) GetTask() map[string]*Task {
 // Workflow records one parsed workflow
 type Workflow struct {
 	scopedSymbol
-	Elements []string
+	Elements                             []string
+	Inputs, Outputs, Meta, ParameterMeta map[string]symboler
 }
 
 func NewWorkflow(name string) *Workflow {
@@ -127,7 +128,8 @@ func NewWorkflow(name string) *Workflow {
 // Workflow records one parsed workflow
 type Task struct {
 	scopedSymbol
-	Elements []string
+	Elements                             []string
+	Inputs, Outputs, Meta, ParameterMeta map[string]symboler
 }
 
 func NewTask(name string) *Task {

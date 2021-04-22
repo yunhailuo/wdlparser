@@ -1,29 +1,11 @@
 package wdlparser
 
 import (
+	"reflect"
 	"testing"
 
 	wdlparser "github.com/yunhailuo/wdlparser/pkg"
 )
-
-func TestBadWDL(t *testing.T) {
-	cases := []struct {
-		in         string
-		errorCount int
-	}{
-		{"testdata/9errors.wdl", 9},
-	}
-
-	for _, c := range cases {
-		_, err := wdlparser.Antlr4Parse(c.in)
-		if len(err) != c.errorCount {
-			t.Errorf(
-				"Found %d errors in %q, expect %d",
-				len(err), c.in, c.errorCount,
-			)
-		}
-	}
-}
 
 func TestVersion(t *testing.T) {
 	inputPath := "testdata/hello.wdl"
@@ -44,7 +26,7 @@ func TestVersion(t *testing.T) {
 
 func TestImport(t *testing.T) {
 	inputPath := "testdata/imports.wdl"
-	expectedImports := map[string]string{
+	expectedImportPaths := map[string]string{
 		"9errors":  "9errors.wdl",
 		"analysis": "http://example.com/lib/analysis_tasks",
 		"stdlib":   "https://example.com/lib/stdlib.wdl",
@@ -55,90 +37,120 @@ func TestImport(t *testing.T) {
 			"Found %d errors in %q, expect no errors", len(err), inputPath,
 		)
 	}
-	resultImports := result.GetImports()
-	if len(resultImports) != len(expectedImports) {
-		t.Errorf(
-			"Found %d imports in %q, expect %d",
-			len(resultImports), inputPath, len(expectedImports),
-		)
+	resultImportPaths := make(map[string]string)
+	for k, wdl := range result.GetImports() {
+		resultImportPaths[k] = wdl.Path
 	}
-	for expectedName, expectedPath := range expectedImports {
-		if wdl, ok := resultImports[expectedName]; ok {
-			if wdl.Path != expectedPath {
-				t.Errorf(
-					"Imported %q from URI %q, expect URI %q",
-					expectedName, wdl.Path, expectedPath,
-				)
-			}
-		} else {
-			t.Errorf("Fail to import %q", expectedName)
-		}
+	if !reflect.DeepEqual(resultImportPaths, expectedImportPaths) {
+		t.Errorf(
+			"Found imports %v, expect %v",
+			resultImportPaths, expectedImportPaths,
+		)
 	}
 }
 
 func TestWorkflow(t *testing.T) {
 	inputPath := "testdata/hello.wdl"
-	expectedName := "HelloWorld"
-	expectedElementCount := 1
-	result, err := wdlparser.Antlr4Parse(inputPath)
-	if err != nil {
-		t.Errorf(
-			"Found %d errors in %q, expect no errors", len(err), inputPath,
-		)
+	type workflowRaw struct {
+		inputs, outputs, meta, parameterMeta map[string]string
+		elementCount                         int
 	}
-	resultWorkflows := result.GetWorkflow()
-	if len(resultWorkflows) != 1 {
-		t.Errorf(
-			"Found %d workflow in %q, expect 1 workflow",
-			len(resultWorkflows), inputPath,
-		)
+	expectedWorkflowRaw := map[string]workflowRaw{
+		"HelloWorld": {
+			elementCount: 5,
+			inputs:       map[string]string{"wf_input_name": ""},
+			outputs: map[string]string{
+				"wf_output_greeting": "WriteGreeting.output_greeting",
+			},
+			meta: map[string]string{
+				"author": `"Yunhai Luo"`, "for": `"workflow"`, "version": "1.1",
+			},
+			parameterMeta: map[string]string{
+				"name": `{help:"A name for workflow input"}`},
+		},
 	}
-	var resultWorkflow *wdlparser.Workflow
-	for _, w := range resultWorkflows {
-		resultWorkflow = w
+
+	result, _ := wdlparser.Antlr4Parse(inputPath)
+	resultWorkflowRaw := make(map[string]workflowRaw)
+	for name, workflow := range result.GetWorkflow() {
+		wfRaw := workflowRaw{
+			elementCount:  len(workflow.Elements),
+			inputs:        make(map[string]string),
+			outputs:       make(map[string]string),
+			meta:          make(map[string]string),
+			parameterMeta: make(map[string]string),
+		}
+		for k, sym := range workflow.Inputs {
+			wfRaw.inputs[k] = sym.GetRaw()
+		}
+		for k, sym := range workflow.Outputs {
+			wfRaw.outputs[k] = sym.GetRaw()
+		}
+		for k, sym := range workflow.Meta {
+			wfRaw.meta[k] = sym.GetRaw()
+		}
+		for k, sym := range workflow.ParameterMeta {
+			wfRaw.parameterMeta[k] = sym.GetRaw()
+		}
+		resultWorkflowRaw[name] = wfRaw
 	}
-	if resultWorkflow.GetName() != expectedName {
+	if !reflect.DeepEqual(resultWorkflowRaw, expectedWorkflowRaw) {
 		t.Errorf(
-			"Got workflow %q, expect workflow %q",
-			resultWorkflow.GetName(), expectedName,
-		)
-	}
-	if len(resultWorkflow.Elements) != expectedElementCount {
-		t.Errorf(
-			"Found %d workflow elements, expect %d",
-			len(resultWorkflow.Elements), expectedElementCount,
+			"Found workflow %v, expect workflow %v",
+			resultWorkflowRaw, expectedWorkflowRaw,
 		)
 	}
 }
 
 func TestTask(t *testing.T) {
 	inputPath := "testdata/hello.wdl"
-	expectedTaskElementCount := map[string]int{
-		"WriteGreeting": 2,
+	type taskRaw struct {
+		elementCount                         int
+		inputs, outputs, meta, parameterMeta map[string]string
 	}
-	result, err := wdlparser.Antlr4Parse(inputPath)
-	if err != nil {
-		t.Errorf(
-			"Found %d errors in %q, expect no errors", len(err), inputPath,
-		)
+	expectedTaskRaw := map[string]taskRaw{
+		"WriteGreeting": {
+			elementCount: 5,
+			inputs:       map[string]string{"name": ""},
+			outputs: map[string]string{
+				"output_greeting": "stdout()",
+			},
+			meta: map[string]string{
+				"author": `"Yunhai Luo"`, "for": `"task"`, "version": "1.1",
+			},
+			parameterMeta: map[string]string{
+				"name": `{help:"One name as task input"}`},
+		},
 	}
-	resultTasks := result.GetTask()
-	if len(resultTasks) != len(expectedTaskElementCount) {
-		t.Errorf(
-			"Found %d Task in %q, expect %d",
-			len(resultTasks), inputPath, len(expectedTaskElementCount),
-		)
-	}
-	for expectedName, expectedElementCount := range expectedTaskElementCount {
-		if task, ok := resultTasks[expectedName]; ok {
-			if len(task.Elements) != expectedElementCount {
-				t.Errorf(
-					"Found %d task elements, expect %d",
-					len(task.Elements), expectedElementCount,
-				)
-			}
-		} else {
-			t.Errorf("Fail to find task %q", expectedName)
+
+	result, _ := wdlparser.Antlr4Parse(inputPath)
+	resultTaskRaw := make(map[string]taskRaw)
+	for name, task := range result.GetTask() {
+		tRaw := taskRaw{
+			elementCount:  len(task.Elements),
+			inputs:        make(map[string]string),
+			outputs:       make(map[string]string),
+			meta:          make(map[string]string),
+			parameterMeta: make(map[string]string),
 		}
+		for k, sym := range task.Inputs {
+			tRaw.inputs[k] = sym.GetRaw()
+		}
+		for k, sym := range task.Outputs {
+			tRaw.outputs[k] = sym.GetRaw()
+		}
+		for k, sym := range task.Meta {
+			tRaw.meta[k] = sym.GetRaw()
+		}
+		for k, sym := range task.ParameterMeta {
+			tRaw.parameterMeta[k] = sym.GetRaw()
+		}
+		resultTaskRaw[name] = tRaw
+	}
+	if !reflect.DeepEqual(resultTaskRaw, expectedTaskRaw) {
+		t.Errorf(
+			"Found task %v, expect task %v",
+			resultTaskRaw, expectedTaskRaw,
+		)
 	}
 }
