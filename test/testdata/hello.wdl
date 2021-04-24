@@ -24,12 +24,16 @@ task WriteGreeting {
     input {
         String name
     }
+    String s = "Hello"
     command <<<
-       echo "Hello "~{name}
+        echo ~{s}" "~{name}
     >>>
     output {
        # Write output to standard out
        File output_greeting = stdout()
+    }
+    runtime {
+        container: "ubuntu:latest"
     }
     meta {
         author: "Yunhai Luo"

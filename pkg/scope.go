@@ -128,13 +128,14 @@ func NewWorkflow(name string) *Workflow {
 // Workflow records one parsed workflow
 type Task struct {
 	scopedSymbol
-	Elements                             []string
-	Inputs, Outputs, Meta, ParameterMeta map[string]symboler
+	Elements, Command                             []string
+	Inputs, Outputs, Runtime, Meta, ParameterMeta map[string]symboler
 }
 
 func NewTask(name string) *Task {
 	task := new(Task)
 	task.SetName(name)
 	task.SetType("task")
+	task.symbolMap = map[string]symboler{}
 	return task
 }

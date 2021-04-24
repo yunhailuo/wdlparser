@@ -7,7 +7,7 @@ import (
 )
 
 func main() {
-	test := [1]string{"../../test/testdata/test.wdl"}
+	test := [1]string{"../../test/testdata/hello.wdl"}
 	for _, path := range test {
 		// for _, path := range os.Args[1:] {
 		_, err := wdlparser.Antlr4Parse(path)

@@ -105,16 +105,20 @@ func TestWorkflow(t *testing.T) {
 func TestTask(t *testing.T) {
 	inputPath := "testdata/hello.wdl"
 	type taskRaw struct {
-		elementCount                         int
-		inputs, outputs, meta, parameterMeta map[string]string
+		command                                       []string
+		inputs, outputs, runtime, meta, parameterMeta map[string]string
 	}
+	expectedPrivateDecl := map[string]string{"s": `"Hello"`}
 	expectedTaskRaw := map[string]taskRaw{
 		"WriteGreeting": {
-			elementCount: 5,
-			inputs:       map[string]string{"name": ""},
+			inputs: map[string]string{"name": ""},
+			command: []string{
+				"\n        echo ", "~{s}", `" "`, "~{name}", "\n    ",
+			},
 			outputs: map[string]string{
 				"output_greeting": "stdout()",
 			},
+			runtime: map[string]string{"container": `"ubuntu:latest"`},
 			meta: map[string]string{
 				"author": `"Yunhai Luo"`, "for": `"task"`, "version": "1.1",
 			},
@@ -126,10 +130,22 @@ func TestTask(t *testing.T) {
 	result, _ := wdlparser.Antlr4Parse(inputPath)
 	resultTaskRaw := make(map[string]taskRaw)
 	for name, task := range result.GetTask() {
+		for k, v := range expectedPrivateDecl {
+			sym, err := task.Resolve(k)
+			if err != nil {
+				t.Errorf("Failed to find private declaration %q", k)
+			} else if sym.GetRaw() != v {
+				t.Errorf(
+					"Found private declaration %q being %q, expect %q",
+					k, sym.GetRaw(), v,
+				)
+			}
+		}
 		tRaw := taskRaw{
-			elementCount:  len(task.Elements),
 			inputs:        make(map[string]string),
+			command:       task.Command,
 			outputs:       make(map[string]string),
+			runtime:       make(map[string]string),
 			meta:          make(map[string]string),
 			parameterMeta: make(map[string]string),
 		}
@@ -138,6 +154,9 @@ func TestTask(t *testing.T) {
 		}
 		for k, sym := range task.Outputs {
 			tRaw.outputs[k] = sym.GetRaw()
+		}
+		for k, sym := range task.Runtime {
+			tRaw.runtime[k] = sym.GetRaw()
 		}
 		for k, sym := range task.Meta {
 			tRaw.meta[k] = sym.GetRaw()

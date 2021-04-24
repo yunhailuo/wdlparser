@@ -231,6 +231,26 @@ func (l *wdlv1_1Listener) ExitTask_input(ctx *parser.Task_inputContext) {
 	l.currentScope = l.currentScope.GetParent()
 }
 
+func (l *wdlv1_1Listener) EnterTask_command(ctx *parser.Task_commandContext) {
+	if task, ok := l.currentScope.(*Task); ok {
+		task.Command = append(
+			task.Command, ctx.Task_command_string_part().GetText(),
+		)
+	}
+}
+
+func (l *wdlv1_1Listener) ExitTask_command_expr_with_string(
+	ctx *parser.Task_command_expr_with_stringContext,
+) {
+	if task, ok := l.currentScope.(*Task); ok {
+		task.Command = append(
+			task.Command,
+			ctx.Task_command_expr_part().GetText(),
+			ctx.Task_command_string_part().GetText(),
+		)
+	}
+}
+
 func (l *wdlv1_1Listener) EnterTask_output(ctx *parser.Task_outputContext) {
 	scp := newScope()
 	scp.SetParent(l.currentScope)
@@ -240,6 +260,36 @@ func (l *wdlv1_1Listener) EnterTask_output(ctx *parser.Task_outputContext) {
 func (l *wdlv1_1Listener) ExitTask_output(ctx *parser.Task_outputContext) {
 	if task, ok := l.currentScope.GetParent().(*Task); ok {
 		task.Outputs = l.currentScope.GetSymbolMap()
+	}
+	l.currentScope = l.currentScope.GetParent()
+}
+
+func (l *wdlv1_1Listener) EnterTask_runtime(ctx *parser.Task_runtimeContext) {
+	scp := newScope()
+	scp.SetParent(l.currentScope)
+	l.currentScope = scp
+}
+
+func (l *wdlv1_1Listener) ExitTask_runtime_kv(
+	ctx *parser.Task_runtime_kvContext,
+) {
+	err := l.currentScope.Define(
+		newSymbol(
+			ctx.Identifier().GetText(),
+			ctx.Expr().GetText(),
+			"",
+			"",
+			true,
+		),
+	)
+	if err != nil {
+		log.Fatal(err)
+	}
+}
+
+func (l *wdlv1_1Listener) ExitTask_runtime(ctx *parser.Task_runtimeContext) {
+	if task, ok := l.currentScope.GetParent().(*Task); ok {
+		task.Runtime = l.currentScope.GetSymbolMap()
 	}
 	l.currentScope = l.currentScope.GetParent()
 }
