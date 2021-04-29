@@ -80,17 +80,17 @@ func TestWorkflow(t *testing.T) {
 			meta:          make(map[string]string),
 			parameterMeta: make(map[string]string),
 		}
-		for k, sym := range workflow.Inputs {
-			wfRaw.inputs[k] = sym.GetRaw()
+		for k, i := range workflow.GetInput() {
+			wfRaw.inputs[k] = string(i.GetValue())
 		}
-		for k, sym := range workflow.Outputs {
-			wfRaw.outputs[k] = sym.GetRaw()
+		for k, o := range workflow.GetOutput() {
+			wfRaw.outputs[k] = string(o.GetValue())
 		}
-		for k, sym := range workflow.Meta {
-			wfRaw.meta[k] = sym.GetRaw()
+		for k, m := range workflow.GetMetadata() {
+			wfRaw.meta[k] = string(m.GetValue())
 		}
-		for k, sym := range workflow.ParameterMeta {
-			wfRaw.parameterMeta[k] = sym.GetRaw()
+		for k, p := range workflow.GetParameterMetadata() {
+			wfRaw.parameterMeta[k] = string(p.GetValue())
 		}
 		resultWorkflowRaw[name] = wfRaw
 	}
@@ -105,13 +105,14 @@ func TestWorkflow(t *testing.T) {
 func TestTask(t *testing.T) {
 	inputPath := "testdata/hello.wdl"
 	type taskRaw struct {
-		command                                       []string
-		inputs, outputs, runtime, meta, parameterMeta map[string]string
+		command                      []string
+		inputs, privateDecl, outputs map[string]string
+		runtime, meta, parameterMeta map[string]string
 	}
-	expectedPrivateDecl := map[string]string{"s": `"Hello"`}
 	expectedTaskRaw := map[string]taskRaw{
 		"WriteGreeting": {
-			inputs: map[string]string{"name": ""},
+			inputs:      map[string]string{"name": ""},
+			privateDecl: map[string]string{"s": `"Hello"`},
 			command: []string{
 				"\n        echo ", "~{s}", `" "`, "~{name}", "\n    ",
 			},
@@ -130,39 +131,32 @@ func TestTask(t *testing.T) {
 	result, _ := wdlparser.Antlr4Parse(inputPath)
 	resultTaskRaw := make(map[string]taskRaw)
 	for name, task := range result.GetTask() {
-		for k, v := range expectedPrivateDecl {
-			sym, err := task.Resolve(k)
-			if err != nil {
-				t.Errorf("Failed to find private declaration %q", k)
-			} else if sym.GetRaw() != v {
-				t.Errorf(
-					"Found private declaration %q being %q, expect %q",
-					k, sym.GetRaw(), v,
-				)
-			}
-		}
 		tRaw := taskRaw{
 			inputs:        make(map[string]string),
+			privateDecl:   make(map[string]string),
 			command:       task.Command,
 			outputs:       make(map[string]string),
 			runtime:       make(map[string]string),
 			meta:          make(map[string]string),
 			parameterMeta: make(map[string]string),
 		}
-		for k, sym := range task.Inputs {
-			tRaw.inputs[k] = sym.GetRaw()
+		for k, i := range task.GetInput() {
+			tRaw.inputs[k] = string(i.GetValue())
 		}
-		for k, sym := range task.Outputs {
-			tRaw.outputs[k] = sym.GetRaw()
+		for k, prv := range task.GetPrivateDecl() {
+			tRaw.privateDecl[k] = string(prv.GetValue())
 		}
-		for k, sym := range task.Runtime {
-			tRaw.runtime[k] = sym.GetRaw()
+		for k, o := range task.GetOutput() {
+			tRaw.outputs[k] = string(o.GetValue())
 		}
-		for k, sym := range task.Meta {
-			tRaw.meta[k] = sym.GetRaw()
+		for k, r := range task.GetRuntime() {
+			tRaw.runtime[k] = string(r.GetValue())
 		}
-		for k, sym := range task.ParameterMeta {
-			tRaw.parameterMeta[k] = sym.GetRaw()
+		for k, m := range task.GetMetadata() {
+			tRaw.meta[k] = string(m.GetValue())
+		}
+		for k, p := range task.GetParameterMetadata() {
+			tRaw.parameterMeta[k] = string(p.GetValue())
 		}
 		resultTaskRaw[name] = tRaw
 	}

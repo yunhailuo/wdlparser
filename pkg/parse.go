@@ -16,7 +16,7 @@ import (
 type wdlv1_1Listener struct {
 	*parser.BaseWdlV1_1ParserListener
 	wdl          *WDL
-	currentScope scoper
+	currentScope namespace
 }
 
 func newWdlv1_1Listener(wdlPath string) *wdlv1_1Listener {
@@ -31,13 +31,14 @@ func (l *wdlv1_1Listener) EnterVersion(ctx *parser.VersionContext) {
 func (l *wdlv1_1Listener) EnterImport_doc(ctx *parser.Import_docContext) {
 	importPath := strings.Trim(ctx.R_string().GetText(), `"`)
 	importedWdl := NewWDL(importPath)
-	importedWdl.SetParent(l.currentScope)
+	importedWdl.setKind(imp)
+	importedWdl.setParent(l.currentScope)
 	l.currentScope = importedWdl
 }
 
 func (l *wdlv1_1Listener) ExitImport_as(ctx *parser.Import_asContext) {
 	if importScope, ok := l.currentScope.(*WDL); ok {
-		importScope.SetName(ctx.Identifier().GetText())
+		importScope.setAlias(ctx.Identifier().GetText())
 	} else {
 		ctx.GetParser().NotifyErrorListeners(
 			`extraneous "import as" outside WDL import statements`,
@@ -48,7 +49,7 @@ func (l *wdlv1_1Listener) ExitImport_as(ctx *parser.Import_asContext) {
 }
 
 func (l *wdlv1_1Listener) ExitImport_doc(ctx *parser.Import_docContext) {
-	parentScope := l.currentScope.GetParent()
+	parentScope := l.currentScope.getParent()
 	importedWdl, ok := l.currentScope.(*WDL)
 	if (parentScope == nil) || !ok {
 		log.Fatal(
@@ -58,106 +59,72 @@ func (l *wdlv1_1Listener) ExitImport_doc(ctx *parser.Import_docContext) {
 			),
 		)
 	} else {
-		err := parentScope.Define(importedWdl)
-		if err != nil {
-			log.Fatal(err)
-		}
+		parentScope.addDeclaration(importedWdl)
 	}
-	l.currentScope = l.currentScope.GetParent()
+	l.currentScope = l.currentScope.getParent()
 }
 
 func (l *wdlv1_1Listener) ExitUnbound_decls(ctx *parser.Unbound_declsContext) {
-	err := l.currentScope.Define(
-		newSymbol(
-			ctx.Identifier().GetText(),
-			"",
-			ctx.Wdl_type().GetText(),
-			"",
-			false,
+	l.currentScope.addDeclaration(
+		newObject(
+			dcl, ctx.Identifier().GetText(), ctx.Wdl_type().GetText(), "",
 		),
 	)
-	if err != nil {
-		log.Fatal(err)
-	}
 }
 
 func (l *wdlv1_1Listener) ExitBound_decls(ctx *parser.Bound_declsContext) {
-	err := l.currentScope.Define(
-		newSymbol(
+	l.currentScope.addDeclaration(
+		newObject(
+			dcl,
 			ctx.Identifier().GetText(),
-			ctx.Expr().GetText(),
 			ctx.Wdl_type().GetText(),
-			"",
-			true,
+			ctx.Expr().GetText(),
 		),
 	)
-	if err != nil {
-		log.Fatal(err)
-	}
 }
 
 func (l *wdlv1_1Listener) EnterMeta_kv(ctx *parser.Meta_kvContext) {
-	err := l.currentScope.Define(
-		newSymbol(
+	l.currentScope.addDeclaration(
+		newObject(
+			mtd,
 			ctx.MetaIdentifier().GetText(),
+			"",
 			ctx.Meta_value().GetText(),
-			"",
-			"",
-			true,
 		),
 	)
-	if err != nil {
-		log.Fatal(err)
-	}
 }
 
 func (l *wdlv1_1Listener) EnterMeta(ctx *parser.MetaContext) {
 	scp := newScope()
-	scp.SetParent(l.currentScope)
+	scp.setParent(l.currentScope)
 	l.currentScope = scp
 }
 
 func (l *wdlv1_1Listener) ExitMeta(ctx *parser.MetaContext) {
-	switch scp := l.currentScope.GetParent().(type) {
-	case *Task:
-		scp.Meta = l.currentScope.GetSymbolMap()
-	case *Workflow:
-		scp.Meta = l.currentScope.GetSymbolMap()
-	default:
-		ctx.GetParser().NotifyErrorListeners(
-			`extraneous "meta" section outside Task or Workflow`,
-			ctx.GetStart(),
-			nil,
-		)
+	for _, d := range l.currentScope.getDeclarations() {
+		d.setKind(mtd)
+		l.currentScope.getParent().addDeclaration(d)
 	}
-	l.currentScope = l.currentScope.GetParent()
+	l.currentScope = l.currentScope.getParent()
 }
 
 func (l *wdlv1_1Listener) EnterParameter_meta(ctx *parser.Parameter_metaContext) {
 	scp := newScope()
-	scp.SetParent(l.currentScope)
+	scp.setParent(l.currentScope)
 	l.currentScope = scp
 }
 
 func (l *wdlv1_1Listener) ExitParameter_meta(ctx *parser.Parameter_metaContext) {
-	switch scp := l.currentScope.GetParent().(type) {
-	case *Task:
-		scp.ParameterMeta = l.currentScope.GetSymbolMap()
-	case *Workflow:
-		scp.ParameterMeta = l.currentScope.GetSymbolMap()
-	default:
-		ctx.GetParser().NotifyErrorListeners(
-			`extraneous "meta" section outside Task or Workflow`,
-			ctx.GetStart(),
-			nil,
-		)
+	for _, d := range l.currentScope.getDeclarations() {
+		d.setKind(pmt)
+		l.currentScope.getParent().addDeclaration(d)
 	}
-	l.currentScope = l.currentScope.GetParent()
+	l.currentScope = l.currentScope.getParent()
 }
 
 func (l *wdlv1_1Listener) EnterWorkflow(ctx *parser.WorkflowContext) {
 	workflow := NewWorkflow(ctx.Identifier().GetText())
-	workflow.SetParent(l.currentScope)
+	workflow.setParent(l.currentScope)
 	l.currentScope = workflow
 	for _, e := range ctx.AllWorkflow_element() {
 		workflow.Elements = append(workflow.Elements, e.GetText())
@@ -166,32 +133,34 @@ func (l *wdlv1_1Listener) EnterWorkflow(ctx *parser.WorkflowContext) {
 
 func (l *wdlv1_1Listener) EnterWorkflow_input(ctx *parser.Workflow_inputContext) {
 	scp := newScope()
-	scp.SetParent(l.currentScope)
+	scp.setParent(l.currentScope)
 	l.currentScope = scp
 }
 
 func (l *wdlv1_1Listener) ExitWorkflow_input(ctx *parser.Workflow_inputContext) {
-	if workflow, ok := l.currentScope.GetParent().(*Workflow); ok {
-		workflow.Inputs = l.currentScope.GetSymbolMap()
+	for _, d := range l.currentScope.getDeclarations() {
+		d.setKind(ipt)
+		l.currentScope.getParent().addDeclaration(d)
 	}
-	l.currentScope = l.currentScope.GetParent()
+	l.currentScope = l.currentScope.getParent()
 }
 
 func (l *wdlv1_1Listener) EnterWorkflow_output(ctx *parser.Workflow_outputContext) {
 	scp := newScope()
-	scp.SetParent(l.currentScope)
+	scp.setParent(l.currentScope)
 	l.currentScope = scp
 }
 
 func (l *wdlv1_1Listener) ExitWorkflow_output(ctx *parser.Workflow_outputContext) {
-	if workflow, ok := l.currentScope.GetParent().(*Workflow); ok {
-		workflow.Outputs = l.currentScope.GetSymbolMap()
+	for _, d := range l.currentScope.getDeclarations() {
+		d.setKind(opt)
+		l.currentScope.getParent().addDeclaration(d)
 	}
-	l.currentScope = l.currentScope.GetParent()
+	l.currentScope = l.currentScope.getParent()
 }
 
 func (l *wdlv1_1Listener) ExitWorkflow(ctx *parser.WorkflowContext) {
-	parentScope := l.currentScope.GetParent()
+	parentScope := l.currentScope.getParent()
 	workflow, ok := l.currentScope.(*Workflow)
 	if (parentScope == nil) || !ok {
 		log.Fatal(
@@ -201,17 +170,14 @@ func (l *wdlv1_1Listener) ExitWorkflow(ctx *parser.WorkflowContext) {
 			),
 		)
 	} else {
-		err := parentScope.Define(workflow)
-		if err != nil {
-			log.Fatal(err)
-		}
+		parentScope.addDeclaration(workflow)
 	}
-	l.currentScope = l.currentScope.GetParent()
+	l.currentScope = parentScope
 }
 
 func (l *wdlv1_1Listener) EnterTask(ctx *parser.TaskContext) {
 	task := NewTask(ctx.Identifier().GetText())
-	task.SetParent(l.currentScope)
+	task.setParent(l.currentScope)
 	l.currentScope = task
 	for _, e := range ctx.AllTask_element() {
 		task.Elements = append(task.Elements, e.GetText())
@@ -220,15 +186,16 @@ func (l *wdlv1_1Listener) EnterTask(ctx *parser.TaskContext) {
 
 func (l *wdlv1_1Listener) EnterTask_input(ctx *parser.Task_inputContext) {
 	scp := newScope()
-	scp.SetParent(l.currentScope)
+	scp.setParent(l.currentScope)
 	l.currentScope = scp
 }
 
 func (l *wdlv1_1Listener) ExitTask_input(ctx *parser.Task_inputContext) {
-	if task, ok := l.currentScope.GetParent().(*Task); ok {
-		task.Inputs = l.currentScope.GetSymbolMap()
+	for _, d := range l.currentScope.getDeclarations() {
+		d.setKind(ipt)
+		l.currentScope.getParent().addDeclaration(d)
 	}
-	l.currentScope = l.currentScope.GetParent()
+	l.currentScope = l.currentScope.getParent()
 }
 
 func (l *wdlv1_1Listener) EnterTask_command(ctx *parser.Task_commandContext) {
@@ -253,49 +220,33 @@ func (l *wdlv1_1Listener) ExitTask_command_expr_with_string(
 
 func (l *wdlv1_1Listener) EnterTask_output(ctx *parser.Task_outputContext) {
 	scp := newScope()
-	scp.SetParent(l.currentScope)
+	scp.setParent(l.currentScope)
 	l.currentScope = scp
 }
 
 func (l *wdlv1_1Listener) ExitTask_output(ctx *parser.Task_outputContext) {
-	if task, ok := l.currentScope.GetParent().(*Task); ok {
-		task.Outputs = l.currentScope.GetSymbolMap()
+	for _, d := range l.currentScope.getDeclarations() {
+		d.setKind(opt)
+		l.currentScope.getParent().addDeclaration(d)
 	}
-	l.currentScope = l.currentScope.GetParent()
-}
-
-func (l *wdlv1_1Listener) EnterTask_runtime(ctx *parser.Task_runtimeContext) {
-	scp := newScope()
-	scp.SetParent(l.currentScope)
-	l.currentScope = scp
+	l.currentScope = l.currentScope.getParent()
 }
 
 func (l *wdlv1_1Listener) ExitTask_runtime_kv(
 	ctx *parser.Task_runtime_kvContext,
 ) {
-	err := l.currentScope.Define(
-		newSymbol(
+	l.currentScope.addDeclaration(
+		newObject(
+			rnt,
 			ctx.Identifier().GetText(),
+			"",
 			ctx.Expr().GetText(),
-			"",
-			"",
-			true,
 		),
 	)
-	if err != nil {
-		log.Fatal(err)
-	}
-}
-
-func (l *wdlv1_1Listener) ExitTask_runtime(ctx *parser.Task_runtimeContext) {
-	if task, ok := l.currentScope.GetParent().(*Task); ok {
-		task.Runtime = l.currentScope.GetSymbolMap()
-	}
-	l.currentScope = l.currentScope.GetParent()
 }
 
 func (l *wdlv1_1Listener) ExitTask(ctx *parser.TaskContext) {
-	parentScope := l.currentScope.GetParent()
+	parentScope := l.currentScope.getParent()
 	task, ok := l.currentScope.(*Task)
 	if (parentScope == nil) || !ok {
 		log.Fatal(
@@ -305,12 +256,9 @@ func (l *wdlv1_1Listener) ExitTask(ctx *parser.TaskContext) {
 			),
 		)
 	} else {
-		err := parentScope.Define(task)
-		if err != nil {
-			log.Fatal(err)
-		}
+		parentScope.addDeclaration(task)
 	}
-	l.currentScope = l.currentScope.GetParent()
+	l.currentScope = parentScope
 }
 
 // Antlr4Parse parse a WDL document into WDL
