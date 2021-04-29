@@ -66,16 +66,16 @@ func (l *wdlv1_1Listener) ExitImport_doc(ctx *parser.Import_docContext) {
 
 func (l *wdlv1_1Listener) ExitUnbound_decls(ctx *parser.Unbound_declsContext) {
 	l.currentScope.addDeclaration(
-		newObject(
-			dcl, ctx.Identifier().GetText(), ctx.Wdl_type().GetText(), "",
+		NewObject(
+			Dcl, ctx.Identifier().GetText(), ctx.Wdl_type().GetText(), "",
 		),
 	)
 }
 
 func (l *wdlv1_1Listener) ExitBound_decls(ctx *parser.Bound_declsContext) {
 	l.currentScope.addDeclaration(
-		newObject(
-			dcl,
+		NewObject(
+			Dcl,
 			ctx.Identifier().GetText(),
 			ctx.Wdl_type().GetText(),
 			ctx.Expr().GetText(),
@@ -85,8 +85,8 @@ func (l *wdlv1_1Listener) ExitBound_decls(ctx *parser.Bound_declsContext) {
 
 func (l *wdlv1_1Listener) EnterMeta_kv(ctx *parser.Meta_kvContext) {
 	l.currentScope.addDeclaration(
-		newObject(
-			mtd,
+		NewObject(
+			Mtd,
 			ctx.MetaIdentifier().GetText(),
 			"",
 			ctx.Meta_value().GetText(),
@@ -102,7 +102,7 @@ func (l *wdlv1_1Listener) EnterMeta(ctx *parser.MetaContext) {
 
 func (l *wdlv1_1Listener) ExitMeta(ctx *parser.MetaContext) {
 	for _, d := range l.currentScope.getDeclarations() {
-		d.setKind(mtd)
+		d.setKind(Mtd)
 		l.currentScope.getParent().addDeclaration(d)
 	}
 	l.currentScope = l.currentScope.getParent()
@@ -116,7 +116,7 @@ func (l *wdlv1_1Listener) EnterParameter_meta(ctx *parser.Parameter_metaContext)
 
 func (l *wdlv1_1Listener) ExitParameter_meta(ctx *parser.Parameter_metaContext) {
 	for _, d := range l.currentScope.getDeclarations() {
-		d.setKind(pmt)
+		d.setKind(Pmt)
 		l.currentScope.getParent().addDeclaration(d)
 	}
 	l.currentScope = l.currentScope.getParent()
@@ -139,7 +139,7 @@ func (l *wdlv1_1Listener) EnterWorkflow_input(ctx *parser.Workflow_inputContext)
 
 func (l *wdlv1_1Listener) ExitWorkflow_input(ctx *parser.Workflow_inputContext) {
 	for _, d := range l.currentScope.getDeclarations() {
-		d.setKind(ipt)
+		d.setKind(Ipt)
 		l.currentScope.getParent().addDeclaration(d)
 	}
 	l.currentScope = l.currentScope.getParent()
@@ -153,7 +153,7 @@ func (l *wdlv1_1Listener) EnterWorkflow_output(ctx *parser.Workflow_outputContex
 
 func (l *wdlv1_1Listener) ExitWorkflow_output(ctx *parser.Workflow_outputContext) {
 	for _, d := range l.currentScope.getDeclarations() {
-		d.setKind(opt)
+		d.setKind(Opt)
 		l.currentScope.getParent().addDeclaration(d)
 	}
 	l.currentScope = l.currentScope.getParent()
@@ -192,7 +192,7 @@ func (l *wdlv1_1Listener) EnterTask_input(ctx *parser.Task_inputContext) {
 
 func (l *wdlv1_1Listener) ExitTask_input(ctx *parser.Task_inputContext) {
 	for _, d := range l.currentScope.getDeclarations() {
-		d.setKind(ipt)
+		d.setKind(Ipt)
 		l.currentScope.getParent().addDeclaration(d)
 	}
 	l.currentScope = l.currentScope.getParent()
@@ -226,7 +226,7 @@ func (l *wdlv1_1Listener) EnterTask_output(ctx *parser.Task_outputContext) {
 
 func (l *wdlv1_1Listener) ExitTask_output(ctx *parser.Task_outputContext) {
 	for _, d := range l.currentScope.getDeclarations() {
-		d.setKind(opt)
+		d.setKind(Opt)
 		l.currentScope.getParent().addDeclaration(d)
 	}
 	l.currentScope = l.currentScope.getParent()
@@ -236,8 +236,8 @@ func (l *wdlv1_1Listener) ExitTask_runtime_kv(
 	ctx *parser.Task_runtime_kvContext,
 ) {
 	l.currentScope.addDeclaration(
-		newObject(
-			rnt,
+		NewObject(
+			Rnt,
 			ctx.Identifier().GetText(),
 			"",
 			ctx.Expr().GetText(),

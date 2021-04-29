@@ -6,7 +6,7 @@ import (
 )
 
 // All named WDL entities implement the decl interface.
-type decl interface {
+type Decl interface {
 	getAlias() string
 	setAlias(string)
 	getKind() objKind
@@ -24,12 +24,12 @@ const (
 	imp                // import
 	wfl                // workflow
 	tsk                // task
-	ipt                // input
-	opt                // output
-	rnt                // runtime
-	mtd                // metadata
-	pmt                // parameter metadata
-	dcl                // general declaration
+	Ipt                // input
+	Opt                // output
+	Rnt                // runtime
+	Mtd                // metadata
+	Pmt                // parameter metadata
+	Dcl                // general declaration
 )
 
 type identType string
@@ -46,7 +46,7 @@ type object struct {
 	value identValue
 }
 
-func newObject(kind objKind, name, rawType, rawValue string) *object {
+func NewObject(kind objKind, name, rawType, rawValue string) *object {
 	s := new(object)
 	s.kind = kind
 	s.name = name
@@ -88,15 +88,15 @@ type namespace interface {
 	getParent() namespace
 	setParent(namespace)
 	getChildren() []namespace
-	getDeclarations() []decl
-	getDeclaration(objKind) map[string]decl
-	addDeclaration(decl)
+	getDeclarations() []Decl
+	getDeclaration(objKind) map[string]Decl
+	addDeclaration(Decl)
 }
 
 type scope struct {
 	parent   namespace
 	children []namespace
-	body     []decl
+	body     []Decl
 }
 
 func newScope() *scope {
@@ -115,12 +115,12 @@ func (s *scope) getChildren() []namespace {
 	return s.children
 }
 
-func (s *scope) getDeclarations() []decl {
+func (s *scope) getDeclarations() []Decl {
 	return s.body
 }
 
-func (s *scope) getDeclaration(k objKind) map[string]decl {
-	ret := map[string]decl{}
+func (s *scope) getDeclaration(k objKind) map[string]Decl {
+	ret := map[string]Decl{}
 	for _, d := range s.body {
 		if d.getKind() == k {
 			k := d.getName()
@@ -133,7 +133,7 @@ func (s *scope) getDeclaration(k objKind) map[string]decl {
 	return ret
 }
 
-func (s *scope) addDeclaration(d decl) {
+func (s *scope) addDeclaration(d Decl) {
 	s.body = append(s.body, d)
 }
 
@@ -145,10 +145,10 @@ type scopedObject struct {
 func newScopedIdenifier(
 	kind objKind, name, rawType, rawValue string,
 ) *scopedObject {
-	si := new(scopedObject)
-	si.scope = *newScope()
-	si.object = *newObject(kind, name, rawType, rawValue)
-	return si
+	so := new(scopedObject)
+	so.scope = *newScope()
+	so.object = *NewObject(kind, name, rawType, rawValue)
+	return so
 }
 
 // A WDL represents a parsed WDL document.
@@ -217,20 +217,20 @@ func NewWorkflow(name string) *Workflow {
 	return workflow
 }
 
-func (wf Workflow) GetInput() map[string]decl {
-	return wf.getDeclaration(ipt)
+func (wf Workflow) GetInput() map[string]Decl {
+	return wf.getDeclaration(Ipt)
 }
 
-func (wf Workflow) GetOutput() map[string]decl {
-	return wf.getDeclaration(opt)
+func (wf Workflow) GetOutput() map[string]Decl {
+	return wf.getDeclaration(Opt)
 }
 
-func (wf Workflow) GetMetadata() map[string]decl {
-	return wf.getDeclaration(mtd)
+func (wf Workflow) GetMetadata() map[string]Decl {
+	return wf.getDeclaration(Mtd)
 }
 
-func (wf Workflow) GetParameterMetadata() map[string]decl {
-	return wf.getDeclaration(pmt)
+func (wf Workflow) GetParameterMetadata() map[string]Decl {
+	return wf.getDeclaration(Pmt)
 }
 
 // A Task represents one parsed task
@@ -245,26 +245,26 @@ func NewTask(name string) *Task {
 	return task
 }
 
-func (t Task) GetInput() map[string]decl {
-	return t.getDeclaration(ipt)
+func (t Task) GetInput() map[string]Decl {
+	return t.getDeclaration(Ipt)
 }
 
-func (t Task) GetPrivateDecl() map[string]decl {
-	return t.getDeclaration(dcl)
+func (t Task) GetPrivateDecl() map[string]Decl {
+	return t.getDeclaration(Dcl)
 }
 
-func (t Task) GetOutput() map[string]decl {
-	return t.getDeclaration(opt)
+func (t Task) GetOutput() map[string]Decl {
+	return t.getDeclaration(Opt)
 }
 
-func (t Task) GetRuntime() map[string]decl {
-	return t.getDeclaration(rnt)
+func (t Task) GetRuntime() map[string]Decl {
+	return t.getDeclaration(Rnt)
 }
 
-func (t Task) GetMetadata() map[string]decl {
-	return t.getDeclaration(mtd)
+func (t Task) GetMetadata() map[string]Decl {
+	return t.getDeclaration(Mtd)
 }
 
-func (t Task) GetParameterMetadata() map[string]decl {
-	return t.getDeclaration(pmt)
+func (t Task) GetParameterMetadata() map[string]Decl {
+	return t.getDeclaration(Pmt)
 }
