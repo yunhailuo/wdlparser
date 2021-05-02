@@ -102,6 +102,7 @@ func TestWorkflowCall(t *testing.T) {
 	inputPath := "testdata/workflow_call.wdl"
 	result, err := Antlr4Parse(inputPath)
 	expectedFirstCall := NewCall(39, 150, "Greeting")
+	expectedFirstCall.setAlias("hello")
 	expectedFirstCall.Inputs = []*object{
 		newObject(
 			91, 113, ipt, "first_name", "", "first_name",
@@ -111,28 +112,26 @@ func TestWorkflowCall(t *testing.T) {
 		),
 	}
 	expectedSecondCall := NewCall(156, 213, "Goodbye")
+	expectedSecondCall.After = "hello"
 	expectedSecondCall.Inputs = []*object{
 		newObject(
 			190, 210, ipt, "first_name", "", `"Yunhai"`,
 		),
 	}
-	expectedOutput := []*Call{expectedFirstCall, expectedSecondCall}
+	expectCalls := []*Call{expectedFirstCall, expectedSecondCall}
 	if err != nil {
 		t.Errorf(
 			"Found %d errors in %q, expect no errors", len(err), inputPath,
 		)
 	}
-	resultOutput := result.Workflow.Calls
-	if !reflect.DeepEqual(resultOutput[0].Inputs, expectedOutput[0].Inputs) {
-		t.Errorf(
-			"Found inputs for the first call %v, expect %v",
-			resultOutput[0].Inputs, expectedOutput[0].Inputs,
-		)
+	resultCalls := result.Workflow.Calls
+	for _, c := range resultCalls {
+		c.setParent(nil)
 	}
-	if !reflect.DeepEqual(resultOutput[1].Inputs, expectedOutput[1].Inputs) {
+	if !reflect.DeepEqual(resultCalls, expectCalls) {
 		t.Errorf(
 			"Found inputs for the first call %v, expect %v",
-			resultOutput[1].Inputs, expectedOutput[1].Inputs,
+			resultCalls, expectCalls,
 		)
 	}
 }

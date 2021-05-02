@@ -310,7 +310,6 @@ func (l *wdlv1_1Listener) ExitCall_input(ctx *parser.Call_inputContext) {
 			ctx.Expr().GetText(),
 		),
 	)
-	call.After = ctx.Identifier().GetText()
 }
 
 func (l *wdlv1_1Listener) ExitCall(ctx *parser.CallContext) {
