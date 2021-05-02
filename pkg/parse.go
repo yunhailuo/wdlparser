@@ -6,6 +6,7 @@ package wdlparser
 
 import (
 	"log"
+	"os"
 	"strings"
 
 	"github.com/antlr/antlr4/runtime/Go/antlr"
@@ -302,20 +303,37 @@ func (l *wdlv1_1Listener) ExitTask(ctx *parser.TaskContext) {
 }
 
 // Antlr4Parse parse a WDL document into WDL
-func Antlr4Parse(path string) (*WDL, []wdlSyntaxError) {
-	input, err := antlr.NewFileStream(path)
-	if err != nil {
-		log.Fatal(err)
+func Antlr4Parse(input string) (*WDL, []wdlSyntaxError) {
+	inputInfo, err := os.Stat(input)
+	var inputStream antlr.CharStream
+	var path string = input
+	if os.IsNotExist(err) {
+		log.Println(
+			"Input is not a file path" +
+				" so guessing it's a WDL document in string.",
+		)
+		path = ""
+		inputStream = antlr.NewInputStream(input)
+	} else if inputInfo.IsDir() {
+		log.Fatalf(
+			"%v is a directory; need a file path or WDL document string.",
+			path,
+		)
+	} else {
+		inputStream, err = antlr.NewFileStream(path)
+		if err != nil {
+			log.Fatal(err)
+		}
 	}
 
-	lexer := parser.NewWdlV1_1Lexer(input)
+	lexer := parser.NewWdlV1_1Lexer(inputStream)
 	stream := antlr.NewCommonTokenStream(lexer, 0)
 	p := parser.NewWdlV1_1Parser(stream)
 	p.Interpreter.SetPredictionMode(antlr.PredictionModeSLL)
 	errorListener := newWdlErrorListener(true)
 	p.AddErrorListener(errorListener)
 	p.BuildParseTrees = true
-	wdl := NewWDL(path, input.Size())
+	wdl := NewWDL(path, inputStream.Size())
 	antlr.ParseTreeWalkerDefault.Walk(newWdlv1_1Listener(wdl), p.Document())
 
 	return wdl, errorListener.syntaxErrors
