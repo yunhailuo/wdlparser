@@ -12,6 +12,7 @@ const (
 	doc nodeKind = iota // WDL document
 	imp                 // import
 	wfl                 // workflow
+	cal                 // call
 	tsk                 // task
 	Ipt                 // input
 	Opt                 // output
@@ -77,6 +78,10 @@ func (s *Object) getKind() nodeKind {
 	return s.kind
 }
 
+func (s *Object) setKind(kind nodeKind) {
+	s.kind = kind
+}
+
 func (s *Object) GetAlias() string {
 	return s.alias
 }
@@ -85,12 +90,12 @@ func (s *Object) setAlias(a string) {
 	s.alias = a
 }
 
-func (s *Object) setKind(kind nodeKind) {
-	s.kind = kind
-}
-
 func (s *Object) GetName() string {
 	return s.name
+}
+
+func (s *Object) setName(n string) {
+	s.name = n
 }
 
 // A WDL represents a parsed WDL document.
@@ -122,6 +127,7 @@ func NewWDL(wdlPath string, size int) *WDL {
 type Workflow struct {
 	Object
 	Inputs, PrvtDecls, Outputs []*Object
+	Calls                      []*Call
 	Meta, ParameterMeta        map[string]*Object
 	Elements                   []string
 }
@@ -132,6 +138,19 @@ func NewWorkflow(start, end int, name string) *Workflow {
 	workflow.Meta = make(map[string]*Object)
 	workflow.ParameterMeta = make(map[string]*Object)
 	return workflow
+}
+
+// A Call represents one parsed call
+type Call struct {
+	Object
+	After  string
+	Inputs []*Object
+}
+
+func NewCall(start, end int, name string) *Call {
+	call := new(Call)
+	call.Object = *NewObject(start, end, cal, name, "", "")
+	return call
 }
 
 // A Task represents one parsed task

@@ -100,6 +100,45 @@ func TestWorkflowPrivateDeclaration(t *testing.T) {
 	}
 }
 
+func TestWorkflowCall(t *testing.T) {
+	inputPath := "testdata/workflow_call.wdl"
+	result, err := wdlparser.Antlr4Parse(inputPath)
+	expectedFirstCall := wdlparser.NewCall(39, 150, "Greeting")
+	expectedFirstCall.Inputs = []*wdlparser.Object{
+		wdlparser.NewObject(
+			91, 113, wdlparser.Ipt, "first_name", "", "first_name",
+		),
+		wdlparser.NewObject(
+			128, 144, wdlparser.Ipt, "last_name", "", `"Luo"`,
+		),
+	}
+	expectedSecondCall := wdlparser.NewCall(156, 213, "Goodbye")
+	expectedSecondCall.Inputs = []*wdlparser.Object{
+		wdlparser.NewObject(
+			190, 210, wdlparser.Ipt, "first_name", "", `"Yunhai"`,
+		),
+	}
+	expectedOutput := []*wdlparser.Call{expectedFirstCall, expectedSecondCall}
+	if err != nil {
+		t.Errorf(
+			"Found %d errors in %q, expect no errors", len(err), inputPath,
+		)
+	}
+	resultOutput := result.Workflow.Calls
+	if !reflect.DeepEqual(resultOutput[0].Inputs, expectedOutput[0].Inputs) {
+		t.Errorf(
+			"Found inputs for the first call %v, expect %v",
+			resultOutput[0].Inputs, expectedOutput[0].Inputs,
+		)
+	}
+	if !reflect.DeepEqual(resultOutput[1].Inputs, expectedOutput[1].Inputs) {
+		t.Errorf(
+			"Found inputs for the first call %v, expect %v",
+			resultOutput[1].Inputs, expectedOutput[1].Inputs,
+		)
+	}
+}
+
 func TestWorkflowOutput(t *testing.T) {
 	inputPath := "testdata/workflow_output.wdl"
 	result, err := wdlparser.Antlr4Parse(inputPath)

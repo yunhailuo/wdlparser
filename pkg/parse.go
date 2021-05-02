@@ -204,8 +204,8 @@ func (l *wdlv1_1Listener) EnterWorkflow(ctx *parser.WorkflowContext) {
 }
 
 func (l *wdlv1_1Listener) ExitWorkflow(ctx *parser.WorkflowContext) {
-	workflow, currentOk := l.currentNode.(*Workflow)
-	if !currentOk {
+	workflow, ok := l.currentNode.(*Workflow)
+	if !ok {
 		log.Fatal(
 			newMismatchContextError(
 				ctx.GetStart().GetLine(),
@@ -227,6 +227,119 @@ func (l *wdlv1_1Listener) ExitWorkflow(ctx *parser.WorkflowContext) {
 	}
 	l.wdl.Workflow = workflow
 	l.currentNode = l.wdl
+}
+func (l *wdlv1_1Listener) EnterCall(ctx *parser.CallContext) {
+	call := NewCall(
+		ctx.GetStart().GetStart(),
+		ctx.GetStop().GetStop(),
+		"",
+	)
+	call.setParent(l.currentNode)
+	l.currentNode = call
+}
+
+func (l *wdlv1_1Listener) ExitCall_name(ctx *parser.Call_nameContext) {
+	call, ok := l.currentNode.(*Call)
+	if !ok {
+		log.Fatal(
+			newMismatchContextError(
+				ctx.GetStart().GetLine(),
+				ctx.GetStart().GetColumn(),
+				"call name",
+				"call",
+				l.currentNode,
+			),
+		)
+	}
+	call.setName(ctx.GetText())
+}
+
+func (l *wdlv1_1Listener) ExitCall_alias(ctx *parser.Call_aliasContext) {
+	call, ok := l.currentNode.(*Call)
+	if !ok {
+		log.Fatal(
+			newMismatchContextError(
+				ctx.GetStart().GetLine(),
+				ctx.GetStart().GetColumn(),
+				"call alias",
+				"call",
+				l.currentNode,
+			),
+		)
+	}
+	call.setAlias(ctx.Identifier().GetText())
+}
+
+func (l *wdlv1_1Listener) ExitCall_after(ctx *parser.Call_afterContext) {
+	call, ok := l.currentNode.(*Call)
+	if !ok {
+		log.Fatal(
+			newMismatchContextError(
+				ctx.GetStart().GetLine(),
+				ctx.GetStart().GetColumn(),
+				"call after",
+				"call",
+				l.currentNode,
+			),
+		)
+	}
+	call.After = ctx.Identifier().GetText()
+}
+
+func (l *wdlv1_1Listener) ExitCall_input(ctx *parser.Call_inputContext) {
+	call, ok := l.currentNode.(*Call)
+	if !ok {
+		log.Fatal(
+			newMismatchContextError(
+				ctx.GetStart().GetLine(),
+				ctx.GetStart().GetColumn(),
+				"call input",
+				"call",
+				l.currentNode,
+			),
+		)
+	}
+	call.Inputs = append(
+		call.Inputs,
+		NewObject(
+			ctx.GetStart().GetStart(),
+			ctx.GetStop().GetStop(),
+			Ipt,
+			ctx.Identifier().GetText(),
+			"",
+			ctx.Expr().GetText(),
+		),
+	)
+	call.After = ctx.Identifier().GetText()
+}
+
+func (l *wdlv1_1Listener) ExitCall(ctx *parser.CallContext) {
+	call, currentOk := l.currentNode.(*Call)
+	if !currentOk {
+		log.Fatal(
+			newMismatchContextError(
+				ctx.GetStart().GetLine(),
+				ctx.GetStart().GetColumn(),
+				"call",
+				"call",
+				l.currentNode,
+			),
+		)
+	}
+	workflow, parentOK := l.currentNode.getParent().(*Workflow)
+	if !parentOK {
+		log.Fatal(
+			newMismatchContextError(
+				ctx.GetStart().GetLine(),
+				ctx.GetStart().GetColumn(),
+				"call",
+				"workflow parent",
+				l.currentNode.getParent(),
+			),
+		)
+	}
+	workflow.Calls = append(workflow.Calls, call)
+	l.currentNode = workflow
 }
 
 func (l *wdlv1_1Listener) EnterTask(ctx *parser.TaskContext) {
@@ -285,8 +398,8 @@ func (l *wdlv1_1Listener) ExitTask_runtime_kv(
 }
 
 func (l *wdlv1_1Listener) ExitTask(ctx *parser.TaskContext) {
-	task, currentOk := l.currentNode.(*Task)
-	if !currentOk {
+	task, ok := l.currentNode.(*Task)
+	if !ok {
 		log.Fatal(
 			newMismatchContextError(
 				ctx.GetStart().GetLine(),
