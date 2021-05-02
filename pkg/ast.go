@@ -14,12 +14,12 @@ const (
 	wfl                 // workflow
 	cal                 // call
 	tsk                 // task
-	Ipt                 // input
-	Opt                 // output
-	Rnt                 // runtime
-	Mtd                 // metadata
-	Pmt                 // parameter metadata
-	Dcl                 // general declaration
+	ipt                 // input
+	opt                 // output
+	rnt                 // runtime
+	mtd                 // metadata
+	pmt                 // parameter metadata
+	dcl                 // general declaration
 )
 
 type node interface {
@@ -36,7 +36,7 @@ type identValue string
 
 // An Object represents a generic (private) declaration, input, output, runtime
 // metadata or parameter metadata entry.
-type Object struct {
+type object struct {
 	start, end  int
 	parent      node
 	kind        nodeKind
@@ -45,10 +45,10 @@ type Object struct {
 	value       identValue
 }
 
-func NewObject(
+func newObject(
 	start, end int, kind nodeKind, name, rawType, rawValue string,
-) *Object {
-	s := new(Object)
+) *object {
+	s := new(object)
 	s.start = start
 	s.end = end
 	s.kind = kind
@@ -58,61 +58,57 @@ func NewObject(
 	return s
 }
 
-func (s *Object) getStart() int {
+func (s *object) getStart() int {
 	return s.start
 }
 
-func (s *Object) getEnd() int {
+func (s *object) getEnd() int {
 	return s.end
 }
 
-func (s *Object) getParent() node {
+func (s *object) getParent() node {
 	return s.parent
 }
 
-func (s *Object) setParent(parent node) {
+func (s *object) setParent(parent node) {
 	s.parent = parent
 }
 
-func (s *Object) getKind() nodeKind {
+func (s *object) getKind() nodeKind {
 	return s.kind
 }
 
-func (s *Object) setKind(kind nodeKind) {
+func (s *object) setKind(kind nodeKind) {
 	s.kind = kind
 }
 
-func (s *Object) GetAlias() string {
-	return s.alias
-}
-
-func (s *Object) setAlias(a string) {
+func (s *object) setAlias(a string) {
 	s.alias = a
 }
 
-func (s *Object) GetName() string {
+func (s *object) getName() string {
 	return s.name
 }
 
-func (s *Object) setName(n string) {
+func (s *object) setName(n string) {
 	s.name = n
 }
 
 // A WDL represents a parsed WDL document.
 type WDL struct {
-	Object
+	object
 	Path     string
 	Version  string
 	Imports  []*WDL
 	Workflow *Workflow
 	Tasks    []*Task
-	Structs  []*Object
+	Structs  []*object
 }
 
 func NewWDL(wdlPath string, size int) *WDL {
 	wdl := new(WDL)
 	wdl.Path = wdlPath
-	wdl.Object = *NewObject(
+	wdl.object = *newObject(
 		0,
 		size-1,
 		doc,
@@ -125,47 +121,47 @@ func NewWDL(wdlPath string, size int) *WDL {
 
 // A Workflow represents one parsed workflow
 type Workflow struct {
-	Object
-	Inputs, PrvtDecls, Outputs []*Object
+	object
+	Inputs, PrvtDecls, Outputs []*object
 	Calls                      []*Call
-	Meta, ParameterMeta        map[string]*Object
+	Meta, ParameterMeta        map[string]*object
 	Elements                   []string
 }
 
 func NewWorkflow(start, end int, name string) *Workflow {
 	workflow := new(Workflow)
-	workflow.Object = *NewObject(start, end, wfl, name, "", "")
-	workflow.Meta = make(map[string]*Object)
-	workflow.ParameterMeta = make(map[string]*Object)
+	workflow.object = *newObject(start, end, wfl, name, "", "")
+	workflow.Meta = make(map[string]*object)
+	workflow.ParameterMeta = make(map[string]*object)
 	return workflow
 }
 
 // A Call represents one parsed call
 type Call struct {
-	Object
+	object
 	After  string
-	Inputs []*Object
+	Inputs []*object
 }
 
 func NewCall(start, end int, name string) *Call {
 	call := new(Call)
-	call.Object = *NewObject(start, end, cal, name, "", "")
+	call.object = *newObject(start, end, cal, name, "", "")
 	return call
 }
 
 // A Task represents one parsed task
 type Task struct {
-	Object
-	Inputs, PrvtDecls, Outputs   []*Object
+	object
+	Inputs, PrvtDecls, Outputs   []*object
 	Command                      []string
-	Runtime, Meta, ParameterMeta map[string]*Object
+	Runtime, Meta, ParameterMeta map[string]*object
 }
 
 func NewTask(start, end int, name string) *Task {
 	task := new(Task)
-	task.Object = *NewObject(start, end, tsk, name, "", "")
-	task.Runtime = make(map[string]*Object)
-	task.Meta = make(map[string]*Object)
-	task.ParameterMeta = make(map[string]*Object)
+	task.object = *newObject(start, end, tsk, name, "", "")
+	task.Runtime = make(map[string]*object)
+	task.Meta = make(map[string]*object)
+	task.ParameterMeta = make(map[string]*object)
 	return task
 }

@@ -44,13 +44,13 @@ func (l *wdlv1_1Listener) ExitImport_doc(ctx *parser.Import_docContext) {
 
 func (l *wdlv1_1Listener) ExitUnbound_decls(ctx *parser.Unbound_declsContext) {
 	// Build a declaration or input object
-	var kind nodeKind = Dcl
+	var kind nodeKind = dcl
 	switch ctx.GetParent().(type) {
 	case *parser.Any_declsContext:
 		// any_decls in the current grammar can only be workflow or task inputs
-		kind = Ipt
+		kind = ipt
 	}
-	obj := NewObject(
+	obj := newObject(
 		ctx.GetStart().GetStart(),
 		ctx.GetStop().GetStop(),
 		kind,
@@ -61,7 +61,7 @@ func (l *wdlv1_1Listener) ExitUnbound_decls(ctx *parser.Unbound_declsContext) {
 	// Put the object into AST
 	switch n := l.currentNode.(type) {
 	case *Workflow:
-		if kind == Dcl {
+		if kind == dcl {
 			log.Fatalf(
 				"Line %d:%d: found a private unbound declaration"+
 					" while in a workflow listener node",
@@ -72,7 +72,7 @@ func (l *wdlv1_1Listener) ExitUnbound_decls(ctx *parser.Unbound_declsContext) {
 			n.Inputs = append(n.Inputs, obj)
 		}
 	case *Task:
-		if kind == Dcl {
+		if kind == dcl {
 			log.Fatalf(
 				"Line %d:%d: found a private unbound declaration"+
 					" while in a task listener node",
@@ -95,15 +95,15 @@ func (l *wdlv1_1Listener) ExitUnbound_decls(ctx *parser.Unbound_declsContext) {
 
 func (l *wdlv1_1Listener) ExitBound_decls(ctx *parser.Bound_declsContext) {
 	// Build an input, output or declaration object
-	var kind nodeKind = Dcl
+	var kind nodeKind = dcl
 	switch ctx.GetParent().(type) {
 	case *parser.Any_declsContext:
 		// any_decls in the current grammar can only be workflow or task inputs
-		kind = Ipt
+		kind = ipt
 	case *parser.Workflow_outputContext, *parser.Task_outputContext:
-		kind = Opt
+		kind = opt
 	}
-	obj := NewObject(
+	obj := newObject(
 		ctx.GetStart().GetStart(),
 		ctx.GetStop().GetStop(),
 		kind,
@@ -114,17 +114,17 @@ func (l *wdlv1_1Listener) ExitBound_decls(ctx *parser.Bound_declsContext) {
 	// Put the object into AST
 	switch n := l.currentNode.(type) {
 	case *Workflow:
-		if kind == Dcl {
+		if kind == dcl {
 			n.PrvtDecls = append(n.PrvtDecls, obj)
-		} else if kind == Ipt {
+		} else if kind == ipt {
 			n.Inputs = append(n.Inputs, obj)
 		} else {
 			n.Outputs = append(n.Outputs, obj)
 		}
 	case *Task:
-		if kind == Dcl {
+		if kind == dcl {
 			n.PrvtDecls = append(n.PrvtDecls, obj)
-		} else if kind == Ipt {
+		} else if kind == ipt {
 			n.Inputs = append(n.Inputs, obj)
 		} else {
 			n.Outputs = append(n.Outputs, obj)
@@ -145,9 +145,9 @@ func (l *wdlv1_1Listener) EnterMeta_kv(ctx *parser.Meta_kvContext) {
 	var kind nodeKind
 	switch c := ctx.GetParent().(type) {
 	case *parser.MetaContext:
-		kind = Mtd
+		kind = mtd
 	case *parser.Parameter_metaContext:
-		kind = Pmt
+		kind = pmt
 	default:
 		log.Fatalf(
 			"Unexpected metadata declaration at line %d:%d"+
@@ -157,7 +157,7 @@ func (l *wdlv1_1Listener) EnterMeta_kv(ctx *parser.Meta_kvContext) {
 			c,
 		)
 	}
-	obj := NewObject(
+	obj := newObject(
 		ctx.GetStart().GetStart(),
 		ctx.GetStop().GetStop(),
 		kind,
@@ -168,16 +168,16 @@ func (l *wdlv1_1Listener) EnterMeta_kv(ctx *parser.Meta_kvContext) {
 	// Put the object into AST
 	switch n := l.currentNode.(type) {
 	case *Workflow:
-		if kind == Pmt {
-			n.ParameterMeta[obj.GetName()] = obj
+		if kind == pmt {
+			n.ParameterMeta[obj.getName()] = obj
 		} else {
-			n.Meta[obj.GetName()] = obj
+			n.Meta[obj.getName()] = obj
 		}
 	case *Task:
-		if kind == Pmt {
-			n.ParameterMeta[obj.GetName()] = obj
+		if kind == pmt {
+			n.ParameterMeta[obj.getName()] = obj
 		} else {
-			n.Meta[obj.GetName()] = obj
+			n.Meta[obj.getName()] = obj
 		}
 	default:
 		log.Fatalf(
@@ -221,8 +221,8 @@ func (l *wdlv1_1Listener) ExitWorkflow(ctx *parser.WorkflowContext) {
 			"Found a \"%v\" workflow while a \"%v\" workflow already exists;"+
 				" a maximum of one workflow is allowed by grammar"+
 				" so this is likely a parsing error",
-			l.wdl.Workflow.GetName(),
-			workflow.GetName(),
+			l.wdl.Workflow.getName(),
+			workflow.getName(),
 		)
 	}
 	l.wdl.Workflow = workflow
@@ -301,10 +301,10 @@ func (l *wdlv1_1Listener) ExitCall_input(ctx *parser.Call_inputContext) {
 	}
 	call.Inputs = append(
 		call.Inputs,
-		NewObject(
+		newObject(
 			ctx.GetStart().GetStart(),
 			ctx.GetStop().GetStop(),
-			Ipt,
+			ipt,
 			ctx.Identifier().GetText(),
 			"",
 			ctx.Expr().GetText(),
@@ -376,10 +376,10 @@ func (l *wdlv1_1Listener) ExitTask_runtime_kv(
 	ctx *parser.Task_runtime_kvContext,
 ) {
 	if t, ok := l.currentNode.(*Task); ok {
-		t.Runtime[ctx.Identifier().GetText()] = NewObject(
+		t.Runtime[ctx.Identifier().GetText()] = newObject(
 			ctx.GetStart().GetStart(),
 			ctx.GetStop().GetStop(),
-			Rnt,
+			rnt,
 			ctx.Identifier().GetText(),
 			"",
 			ctx.Expr().GetText(),
