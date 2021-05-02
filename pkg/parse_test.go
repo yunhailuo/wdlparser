@@ -24,29 +24,25 @@ func TestVersion(t *testing.T) {
 
 func TestImport(t *testing.T) {
 	inputPath := "testdata/import.wdl"
-	expectedImportPaths := map[string]string{
-		"test":     "test.wdl",
-		"analysis": "http://example.com/lib/analysis_tasks",
-		"stdlib":   "https://example.com/lib/stdlib.wdl",
-	}
 	result, err := Antlr4Parse(inputPath)
+	import1 := NewWDL("test.wdl", 0)
+	import1.setKind(imp)
+	import2 := NewWDL("http://example.com/lib/analysis_tasks", 0)
+	import2.setKind(imp)
+	import2.setAlias("analysis")
+	import3 := NewWDL("https://example.com/lib/stdlib.wdl", 0)
+	import3.setKind(imp)
+	expectedImports := []*WDL{import1, import2, import3}
 	if err != nil {
 		t.Errorf(
 			"Found %d errors in %q, expect no errors", len(err), inputPath,
 		)
 	}
-	resultImportPaths := make(map[string]string)
-	for _, wdl := range result.Imports {
-		k := wdl.getName()
-		if wdl.getAlias() != "" {
-			k = wdl.getAlias()
-		}
-		resultImportPaths[k] = wdl.Path
-	}
-	if !reflect.DeepEqual(resultImportPaths, expectedImportPaths) {
+	resultImports := result.Imports
+	if !reflect.DeepEqual(resultImports, expectedImports) {
 		t.Errorf(
 			"Found imports %v, expect %v",
-			resultImportPaths, expectedImportPaths,
+			resultImports, expectedImports,
 		)
 	}
 }
