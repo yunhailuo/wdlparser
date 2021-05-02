@@ -5,7 +5,6 @@ source files. Language specifications can be found at https://github.com/openwdl
 package wdlparser
 
 import (
-	"fmt"
 	"log"
 	"strings"
 
@@ -15,191 +14,232 @@ import (
 
 type wdlv1_1Listener struct {
 	*parser.BaseWdlV1_1ParserListener
-	wdl          *WDL
-	currentScope namespace
+	wdl         *WDL
+	currentNode node
 }
 
-func newWdlv1_1Listener(wdlPath string) *wdlv1_1Listener {
-	wdl := NewWDL(wdlPath)
-	return &wdlv1_1Listener{wdl: wdl}
+func newWdlv1_1Listener(wdl *WDL) *wdlv1_1Listener {
+	return &wdlv1_1Listener{wdl: wdl, currentNode: wdl}
 }
 
-func (l *wdlv1_1Listener) EnterVersion(ctx *parser.VersionContext) {
+func (l *wdlv1_1Listener) ExitVersion(ctx *parser.VersionContext) {
 	l.wdl.Version = ctx.ReleaseVersion().GetText()
 }
 
-func (l *wdlv1_1Listener) EnterImport_doc(ctx *parser.Import_docContext) {
-	importPath := strings.Trim(ctx.R_string().GetText(), `"`)
-	importedWdl := NewWDL(importPath)
-	importedWdl.setKind(imp)
-	importedWdl.setParent(l.currentScope)
-	l.currentScope = importedWdl
-}
-
-func (l *wdlv1_1Listener) ExitImport_as(ctx *parser.Import_asContext) {
-	if importScope, ok := l.currentScope.(*WDL); ok {
-		importScope.setAlias(ctx.Identifier().GetText())
-	} else {
-		ctx.GetParser().NotifyErrorListeners(
-			`extraneous "import as" outside WDL import statements`,
-			ctx.GetStart(),
-			nil,
-		)
-	}
-}
-
 func (l *wdlv1_1Listener) ExitImport_doc(ctx *parser.Import_docContext) {
-	parentScope := l.currentScope.getParent()
-	importedWdl, ok := l.currentScope.(*WDL)
-	if (parentScope == nil) || !ok {
-		log.Fatal(
-			fmt.Sprintf(
-				"Wrong scope at line %d:%d: expecting a nested import scope",
-				ctx.GetStart().GetLine(), ctx.GetStart().GetColumn(),
-			),
-		)
-	} else {
-		parentScope.addDeclaration(importedWdl)
+	// Build an import node
+	importPath := strings.Trim(ctx.R_string().GetText(), `"`)
+	importedWdl := NewWDL(importPath, 0)
+	importedWdl.setKind(imp)
+	for _, child := range ctx.GetChildren() {
+		switch childCtx := child.(type) {
+		case *parser.Import_asContext:
+			importedWdl.setAlias(childCtx.Identifier().GetText())
+		}
 	}
-	l.currentScope = l.currentScope.getParent()
+	// Put the import node into AST
+	l.wdl.Imports = append(l.wdl.Imports, importedWdl)
 }
 
 func (l *wdlv1_1Listener) ExitUnbound_decls(ctx *parser.Unbound_declsContext) {
-	l.currentScope.addDeclaration(
-		NewObject(
-			Dcl, ctx.Identifier().GetText(), ctx.Wdl_type().GetText(), "",
-		),
+	// Build a declaration or input object
+	var kind nodeKind = Dcl
+	switch ctx.GetParent().(type) {
+	case *parser.Any_declsContext:
+		// any_decls in the current grammar can only be workflow or task inputs
+		kind = Ipt
+	}
+	obj := NewObject(
+		ctx.GetStart().GetStart(),
+		ctx.GetStop().GetStop(),
+		kind,
+		ctx.Identifier().GetText(),
+		ctx.Wdl_type().GetText(),
+		"",
 	)
+	// Put the object into AST
+	switch n := l.currentNode.(type) {
+	case *Workflow:
+		if kind == Dcl {
+			log.Fatalf(
+				"Line %d:%d: found a private unbound declaration"+
+					" while in a workflow listener node",
+				ctx.GetStart().GetLine(),
+				ctx.GetStart().GetColumn(),
+			)
+		} else {
+			n.Inputs = append(n.Inputs, obj)
+		}
+	case *Task:
+		if kind == Dcl {
+			log.Fatalf(
+				"Line %d:%d: found a private unbound declaration"+
+					" while in a task listener node",
+				ctx.GetStart().GetLine(),
+				ctx.GetStart().GetColumn(),
+			)
+		} else {
+			n.Inputs = append(n.Inputs, obj)
+		}
+	default:
+		log.Fatalf(
+			"Unexpected unbound declaration at line %d:%d"+
+				" while in a %T listener node",
+			ctx.GetStart().GetLine(),
+			ctx.GetStart().GetColumn(),
+			n,
+		)
+	}
 }
 
 func (l *wdlv1_1Listener) ExitBound_decls(ctx *parser.Bound_declsContext) {
-	l.currentScope.addDeclaration(
-		NewObject(
-			Dcl,
-			ctx.Identifier().GetText(),
-			ctx.Wdl_type().GetText(),
-			ctx.Expr().GetText(),
-		),
+	// Build an input, output or declaration object
+	var kind nodeKind = Dcl
+	switch ctx.GetParent().(type) {
+	case *parser.Any_declsContext:
+		// any_decls in the current grammar can only be workflow or task inputs
+		kind = Ipt
+	case *parser.Workflow_outputContext, *parser.Task_outputContext:
+		kind = Opt
+	}
+	obj := NewObject(
+		ctx.GetStart().GetStart(),
+		ctx.GetStop().GetStop(),
+		kind,
+		ctx.Identifier().GetText(),
+		ctx.Wdl_type().GetText(),
+		ctx.Expr().GetText(),
 	)
+	// Put the object into AST
+	switch n := l.currentNode.(type) {
+	case *Workflow:
+		if kind == Dcl {
+			n.PrvtDecls = append(n.PrvtDecls, obj)
+		} else if kind == Ipt {
+			n.Inputs = append(n.Inputs, obj)
+		} else {
+			n.Outputs = append(n.Outputs, obj)
+		}
+	case *Task:
+		if kind == Dcl {
+			n.PrvtDecls = append(n.PrvtDecls, obj)
+		} else if kind == Ipt {
+			n.Inputs = append(n.Inputs, obj)
+		} else {
+			n.Outputs = append(n.Outputs, obj)
+		}
+	default:
+		log.Fatalf(
+			"Unexpected bound declaration at line %d:%d"+
+				" while in a %T listener node",
+			ctx.GetStart().GetLine(),
+			ctx.GetStart().GetColumn(),
+			n,
+		)
+	}
 }
 
 func (l *wdlv1_1Listener) EnterMeta_kv(ctx *parser.Meta_kvContext) {
-	l.currentScope.addDeclaration(
-		NewObject(
-			Mtd,
-			ctx.MetaIdentifier().GetText(),
-			"",
-			ctx.Meta_value().GetText(),
-		),
+	// Build a metadata or parameter metadata object
+	var kind nodeKind
+	switch c := ctx.GetParent().(type) {
+	case *parser.MetaContext:
+		kind = Mtd
+	case *parser.Parameter_metaContext:
+		kind = Pmt
+	default:
+		log.Fatalf(
+			"Unexpected metadata declaration at line %d:%d"+
+				" while in a %T parser context",
+			ctx.GetStart().GetLine(),
+			ctx.GetStart().GetColumn(),
+			c,
+		)
+	}
+	obj := NewObject(
+		ctx.GetStart().GetStart(),
+		ctx.GetStop().GetStop(),
+		kind,
+		ctx.MetaIdentifier().GetText(),
+		"",
+		ctx.Meta_value().GetText(),
 	)
-}
-
-func (l *wdlv1_1Listener) EnterMeta(ctx *parser.MetaContext) {
-	scp := newScope()
-	scp.setParent(l.currentScope)
-	l.currentScope = scp
-}
-
-func (l *wdlv1_1Listener) ExitMeta(ctx *parser.MetaContext) {
-	for _, d := range l.currentScope.getDeclarations() {
-		d.setKind(Mtd)
-		l.currentScope.getParent().addDeclaration(d)
+	// Put the object into AST
+	switch n := l.currentNode.(type) {
+	case *Workflow:
+		if kind == Pmt {
+			n.ParameterMeta[obj.GetName()] = obj
+		} else {
+			n.Meta[obj.GetName()] = obj
+		}
+	case *Task:
+		if kind == Pmt {
+			n.ParameterMeta[obj.GetName()] = obj
+		} else {
+			n.Meta[obj.GetName()] = obj
+		}
+	default:
+		log.Fatalf(
+			"Unexpected metadata declaration at line %d:%d"+
+				" while in a %T listener node",
+			ctx.GetStart().GetLine(),
+			ctx.GetStart().GetColumn(),
+			n,
+		)
 	}
-	l.currentScope = l.currentScope.getParent()
-}
-
-func (l *wdlv1_1Listener) EnterParameter_meta(ctx *parser.Parameter_metaContext) {
-	scp := newScope()
-	scp.setParent(l.currentScope)
-	l.currentScope = scp
-}
-
-func (l *wdlv1_1Listener) ExitParameter_meta(ctx *parser.Parameter_metaContext) {
-	for _, d := range l.currentScope.getDeclarations() {
-		d.setKind(Pmt)
-		l.currentScope.getParent().addDeclaration(d)
-	}
-	l.currentScope = l.currentScope.getParent()
 }
 
 func (l *wdlv1_1Listener) EnterWorkflow(ctx *parser.WorkflowContext) {
-	workflow := NewWorkflow(ctx.Identifier().GetText())
-	workflow.setParent(l.currentScope)
-	l.currentScope = workflow
+	workflow := NewWorkflow(
+		ctx.GetStart().GetStart(),
+		ctx.GetStop().GetStop(),
+		ctx.Identifier().GetText(),
+	)
+	workflow.setParent(l.currentNode)
+	l.currentNode = workflow
 	for _, e := range ctx.AllWorkflow_element() {
 		workflow.Elements = append(workflow.Elements, e.GetText())
 	}
 }
 
-func (l *wdlv1_1Listener) EnterWorkflow_input(ctx *parser.Workflow_inputContext) {
-	scp := newScope()
-	scp.setParent(l.currentScope)
-	l.currentScope = scp
-}
-
-func (l *wdlv1_1Listener) ExitWorkflow_input(ctx *parser.Workflow_inputContext) {
-	for _, d := range l.currentScope.getDeclarations() {
-		d.setKind(Ipt)
-		l.currentScope.getParent().addDeclaration(d)
-	}
-	l.currentScope = l.currentScope.getParent()
-}
-
-func (l *wdlv1_1Listener) EnterWorkflow_output(ctx *parser.Workflow_outputContext) {
-	scp := newScope()
-	scp.setParent(l.currentScope)
-	l.currentScope = scp
-}
-
-func (l *wdlv1_1Listener) ExitWorkflow_output(ctx *parser.Workflow_outputContext) {
-	for _, d := range l.currentScope.getDeclarations() {
-		d.setKind(Opt)
-		l.currentScope.getParent().addDeclaration(d)
-	}
-	l.currentScope = l.currentScope.getParent()
-}
-
 func (l *wdlv1_1Listener) ExitWorkflow(ctx *parser.WorkflowContext) {
-	parentScope := l.currentScope.getParent()
-	workflow, ok := l.currentScope.(*Workflow)
-	if (parentScope == nil) || !ok {
+	workflow, currentOk := l.currentNode.(*Workflow)
+	if !currentOk {
 		log.Fatal(
-			fmt.Sprintf(
-				"Wrong scope at line %d:%d: expecting a nested workflow scope",
-				ctx.GetStart().GetLine(), ctx.GetStart().GetColumn(),
+			newMismatchContextError(
+				ctx.GetStart().GetLine(),
+				ctx.GetStart().GetColumn(),
+				"workflow",
+				"workflow",
+				l.currentNode,
 			),
 		)
-	} else {
-		parentScope.addDeclaration(workflow)
 	}
-	l.currentScope = parentScope
+	if l.wdl.Workflow != nil {
+		log.Fatalf(
+			"Found a \"%v\" workflow while a \"%v\" workflow already exists;"+
+				" a maximum of one workflow is allowed by grammar"+
+				" so this is likely a parsing error",
+			l.wdl.Workflow.GetName(),
+			workflow.GetName(),
+		)
+	}
+	l.wdl.Workflow = workflow
+	l.currentNode = l.wdl
 }
 
 func (l *wdlv1_1Listener) EnterTask(ctx *parser.TaskContext) {
-	task := NewTask(ctx.Identifier().GetText())
-	task.setParent(l.currentScope)
-	l.currentScope = task
-	for _, e := range ctx.AllTask_element() {
-		task.Elements = append(task.Elements, e.GetText())
-	}
-}
-
-func (l *wdlv1_1Listener) EnterTask_input(ctx *parser.Task_inputContext) {
-	scp := newScope()
-	scp.setParent(l.currentScope)
-	l.currentScope = scp
-}
-
-func (l *wdlv1_1Listener) ExitTask_input(ctx *parser.Task_inputContext) {
-	for _, d := range l.currentScope.getDeclarations() {
-		d.setKind(Ipt)
-		l.currentScope.getParent().addDeclaration(d)
-	}
-	l.currentScope = l.currentScope.getParent()
+	task := NewTask(
+		ctx.GetStart().GetStart(),
+		ctx.GetStop().GetStop(),
+		ctx.Identifier().GetText(),
+	)
+	task.setParent(l.currentNode)
+	l.currentNode = task
 }
 
 func (l *wdlv1_1Listener) EnterTask_command(ctx *parser.Task_commandContext) {
-	if task, ok := l.currentScope.(*Task); ok {
+	if task, ok := l.currentNode.(*Task); ok {
 		task.Command = append(
 			task.Command, ctx.Task_command_string_part().GetText(),
 		)
@@ -209,7 +249,7 @@ func (l *wdlv1_1Listener) EnterTask_command(ctx *parser.Task_commandContext) {
 func (l *wdlv1_1Listener) ExitTask_command_expr_with_string(
 	ctx *parser.Task_command_expr_with_stringContext,
 ) {
-	if task, ok := l.currentScope.(*Task); ok {
+	if task, ok := l.currentNode.(*Task); ok {
 		task.Command = append(
 			task.Command,
 			ctx.Task_command_expr_part().GetText(),
@@ -218,51 +258,51 @@ func (l *wdlv1_1Listener) ExitTask_command_expr_with_string(
 	}
 }
 
-func (l *wdlv1_1Listener) EnterTask_output(ctx *parser.Task_outputContext) {
-	scp := newScope()
-	scp.setParent(l.currentScope)
-	l.currentScope = scp
-}
-
-func (l *wdlv1_1Listener) ExitTask_output(ctx *parser.Task_outputContext) {
-	for _, d := range l.currentScope.getDeclarations() {
-		d.setKind(Opt)
-		l.currentScope.getParent().addDeclaration(d)
-	}
-	l.currentScope = l.currentScope.getParent()
-}
-
 func (l *wdlv1_1Listener) ExitTask_runtime_kv(
 	ctx *parser.Task_runtime_kvContext,
 ) {
-	l.currentScope.addDeclaration(
-		NewObject(
+	if t, ok := l.currentNode.(*Task); ok {
+		t.Runtime[ctx.Identifier().GetText()] = NewObject(
+			ctx.GetStart().GetStart(),
+			ctx.GetStop().GetStop(),
 			Rnt,
 			ctx.Identifier().GetText(),
 			"",
 			ctx.Expr().GetText(),
-		),
-	)
+		)
+	} else {
+		log.Fatal(
+			newMismatchContextError(
+				ctx.GetStart().GetLine(),
+				ctx.GetStart().GetColumn(),
+				"task runtime",
+				"task",
+				l.currentNode,
+			),
+		)
+	}
 }
 
 func (l *wdlv1_1Listener) ExitTask(ctx *parser.TaskContext) {
-	parentScope := l.currentScope.getParent()
-	task, ok := l.currentScope.(*Task)
-	if (parentScope == nil) || !ok {
+	task, currentOk := l.currentNode.(*Task)
+	if !currentOk {
 		log.Fatal(
-			fmt.Sprintf(
-				"Wrong scope at line %d:%d: expecting a nested task scope",
-				ctx.GetStart().GetLine(), ctx.GetStart().GetColumn(),
+			newMismatchContextError(
+				ctx.GetStart().GetLine(),
+				ctx.GetStart().GetColumn(),
+				"task",
+				"task",
+				l.currentNode,
 			),
 		)
-	} else {
-		parentScope.addDeclaration(task)
 	}
-	l.currentScope = parentScope
+	// TODO: check task name is unique in a WDL document
+	l.wdl.Tasks = append(l.wdl.Tasks, task)
+	l.currentNode = l.wdl
 }
 
 // Antlr4Parse parse a WDL document into WDL
-func Antlr4Parse(path string) (*WDL, []WDLSyntaxError) {
+func Antlr4Parse(path string) (*WDL, []wdlSyntaxError) {
 	input, err := antlr.NewFileStream(path)
 	if err != nil {
 		log.Fatal(err)
@@ -275,9 +315,8 @@ func Antlr4Parse(path string) (*WDL, []WDLSyntaxError) {
 	errorListener := newWdlErrorListener(true)
 	p.AddErrorListener(errorListener)
 	p.BuildParseTrees = true
-	listener := newWdlv1_1Listener(path)
-	listener.currentScope = listener.wdl
-	antlr.ParseTreeWalkerDefault.Walk(listener, p.Document())
+	wdl := NewWDL(path, input.Size())
+	antlr.ParseTreeWalkerDefault.Walk(newWdlv1_1Listener(wdl), p.Document())
 
-	return listener.wdl, errorListener.syntaxErrors
+	return wdl, errorListener.syntaxErrors
 }

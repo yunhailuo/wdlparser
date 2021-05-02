@@ -38,7 +38,11 @@ func TestImport(t *testing.T) {
 		)
 	}
 	resultImportPaths := make(map[string]string)
-	for k, wdl := range result.GetImports() {
+	for _, wdl := range result.Imports {
+		k := wdl.GetName()
+		if wdl.GetAlias() != "" {
+			k = wdl.GetAlias()
+		}
 		resultImportPaths[k] = wdl.Path
 	}
 	if !reflect.DeepEqual(resultImportPaths, expectedImportPaths) {
@@ -52,12 +56,12 @@ func TestImport(t *testing.T) {
 func TestWorkflowInput(t *testing.T) {
 	inputPath := "testdata/workflow_input.wdl"
 	result, err := wdlparser.Antlr4Parse(inputPath)
-	expectedInput := map[string]wdlparser.Decl{
-		"input_str": wdlparser.NewObject(
-			wdlparser.Ipt, "input_str", "String", "",
+	expectedInput := []*wdlparser.Object{
+		wdlparser.NewObject(
+			50, 65, wdlparser.Ipt, "input_str", "String", "",
 		),
-		"input_file_path": wdlparser.NewObject(
-			wdlparser.Ipt, "input_file_path", "File", "",
+		wdlparser.NewObject(
+			75, 94, wdlparser.Ipt, "input_file_path", "File", "",
 		),
 	}
 	if err != nil {
@@ -65,7 +69,7 @@ func TestWorkflowInput(t *testing.T) {
 			"Found %d errors in %q, expect no errors", len(err), inputPath,
 		)
 	}
-	resultInput := result.GetWorkflow()["Input"].GetInput()
+	resultInput := result.Workflow.Inputs
 	if !reflect.DeepEqual(resultInput, expectedInput) {
 		t.Errorf(
 			"Found workflow input %v, expect %v",
@@ -74,12 +78,12 @@ func TestWorkflowInput(t *testing.T) {
 	}
 }
 
-func TestWorkflowOutput(t *testing.T) {
-	inputPath := "testdata/workflow_output.wdl"
+func TestWorkflowPrivateDeclaration(t *testing.T) {
+	inputPath := "testdata/workflow_private_declaration.wdl"
 	result, err := wdlparser.Antlr4Parse(inputPath)
-	expectedOutput := map[string]wdlparser.Decl{
-		"output_file": wdlparser.NewObject(
-			wdlparser.Opt, "output_file", "File", `"/Path/to/output"`,
+	expectedPrivateDecl := []*wdlparser.Object{
+		wdlparser.NewObject(
+			47, 64, wdlparser.Dcl, "s", "String", `"Hello"`,
 		),
 	}
 	if err != nil {
@@ -87,7 +91,29 @@ func TestWorkflowOutput(t *testing.T) {
 			"Found %d errors in %q, expect no errors", len(err), inputPath,
 		)
 	}
-	resultOutput := result.GetWorkflow()["Output"].GetOutput()
+	resultPrivateDecl := result.Workflow.PrvtDecls
+	if !reflect.DeepEqual(resultPrivateDecl, expectedPrivateDecl) {
+		t.Errorf(
+			"Found workflow private declaration %v, expect %v",
+			resultPrivateDecl, expectedPrivateDecl,
+		)
+	}
+}
+
+func TestWorkflowOutput(t *testing.T) {
+	inputPath := "testdata/workflow_output.wdl"
+	result, err := wdlparser.Antlr4Parse(inputPath)
+	expectedOutput := []*wdlparser.Object{
+		wdlparser.NewObject(
+			52, 87, wdlparser.Opt, "output_file", "File", `"/Path/to/output"`,
+		),
+	}
+	if err != nil {
+		t.Errorf(
+			"Found %d errors in %q, expect no errors", len(err), inputPath,
+		)
+	}
+	resultOutput := result.Workflow.Outputs
 	if !reflect.DeepEqual(resultOutput, expectedOutput) {
 		t.Errorf(
 			"Found workflow output %v, expect %v",
@@ -99,15 +125,15 @@ func TestWorkflowOutput(t *testing.T) {
 func TestWorkflowMeta(t *testing.T) {
 	inputPath := "testdata/workflow_meta.wdl"
 	result, err := wdlparser.Antlr4Parse(inputPath)
-	expectedMeta := map[string]wdlparser.Decl{
+	expectedMeta := map[string]*wdlparser.Object{
 		"author": wdlparser.NewObject(
-			wdlparser.Mtd, "author", "", `"Yunhai Luo"`,
+			48, 67, wdlparser.Mtd, "author", "", `"Yunhai Luo"`,
 		),
 		"version": wdlparser.NewObject(
-			wdlparser.Mtd, "version", "", "1.1",
+			77, 88, wdlparser.Mtd, "version", "", "1.1",
 		),
 		"for": wdlparser.NewObject(
-			wdlparser.Mtd, "for", "", `"workflow"`,
+			98, 112, wdlparser.Mtd, "for", "", `"workflow"`,
 		),
 	}
 	if err != nil {
@@ -115,7 +141,7 @@ func TestWorkflowMeta(t *testing.T) {
 			"Found %d errors in %q, expect no errors", len(err), inputPath,
 		)
 	}
-	resultMeta := result.GetWorkflow()["Meta"].GetMetadata()
+	resultMeta := result.Workflow.Meta
 	if !reflect.DeepEqual(resultMeta, expectedMeta) {
 		t.Errorf(
 			"Found workflow metadata %v, expect %v",
@@ -127,9 +153,9 @@ func TestWorkflowMeta(t *testing.T) {
 func TestWorkflowParameterMeta(t *testing.T) {
 	inputPath := "testdata/workflow_parameter_meta.wdl"
 	result, err := wdlparser.Antlr4Parse(inputPath)
-	expectedParameterMeta := map[string]wdlparser.Decl{
+	expectedParameterMeta := map[string]*wdlparser.Object{
 		"name": wdlparser.NewObject(
-			wdlparser.Pmt, "name", "", `{help:"A name for workflow input"}`,
+			67, 129, wdlparser.Pmt, "name", "", `{help:"A name for workflow input"}`,
 		),
 	}
 	if err != nil {
@@ -137,7 +163,7 @@ func TestWorkflowParameterMeta(t *testing.T) {
 			"Found %d errors in %q, expect no errors", len(err), inputPath,
 		)
 	}
-	resultParameterMeta := result.GetWorkflow()["ParameterMeta"].GetParameterMetadata()
+	resultParameterMeta := result.Workflow.ParameterMeta
 	if !reflect.DeepEqual(resultParameterMeta, expectedParameterMeta) {
 		t.Errorf(
 			"Found workflow parameter metadata %v, expect %v",
@@ -149,9 +175,9 @@ func TestWorkflowParameterMeta(t *testing.T) {
 func TestTaskInput(t *testing.T) {
 	inputPath := "testdata/task_input.wdl"
 	result, err := wdlparser.Antlr4Parse(inputPath)
-	expectedInput := map[string]wdlparser.Decl{
-		"name": wdlparser.NewObject(
-			wdlparser.Ipt, "name", "String", `"World"`,
+	expectedInput := []*wdlparser.Object{
+		wdlparser.NewObject(
+			46, 66, wdlparser.Ipt, "name", "String", `"World"`,
 		),
 	}
 	if err != nil {
@@ -159,7 +185,7 @@ func TestTaskInput(t *testing.T) {
 			"Found %d errors in %q, expect no errors", len(err), inputPath,
 		)
 	}
-	resultInput := result.GetTask()["Input"].GetInput()
+	resultInput := result.Tasks[0].Inputs
 	if !reflect.DeepEqual(resultInput, expectedInput) {
 		t.Errorf(
 			"Found task input %v, expect %v",
@@ -171,9 +197,9 @@ func TestTaskInput(t *testing.T) {
 func TestTaskPrivateDeclaration(t *testing.T) {
 	inputPath := "testdata/task_private_declaration.wdl"
 	result, err := wdlparser.Antlr4Parse(inputPath)
-	expectedPrivateDecl := map[string]wdlparser.Decl{
-		"s": wdlparser.NewObject(
-			wdlparser.Dcl, "s", "String", `"Hello"`,
+	expectedPrivateDecl := []*wdlparser.Object{
+		wdlparser.NewObject(
+			43, 60, wdlparser.Dcl, "s", "String", `"Hello"`,
 		),
 	}
 	if err != nil {
@@ -181,7 +207,7 @@ func TestTaskPrivateDeclaration(t *testing.T) {
 			"Found %d errors in %q, expect no errors", len(err), inputPath,
 		)
 	}
-	resultPrivateDecl := result.GetTask()["PrivateDeclaration"].GetPrivateDecl()
+	resultPrivateDecl := result.Tasks[0].PrvtDecls
 	if !reflect.DeepEqual(resultPrivateDecl, expectedPrivateDecl) {
 		t.Errorf(
 			"Found task private declaration %v, expect %v",
@@ -193,13 +219,15 @@ func TestTaskPrivateDeclaration(t *testing.T) {
 func TestTaskCommand(t *testing.T) {
 	inputPath := "testdata/task_command.wdl"
 	result, err := wdlparser.Antlr4Parse(inputPath)
-	expectedCommand := []string{"\n        echo \"Hello world\"\n    "}
+	expectedCommand := []string{
+		"\n        echo \"Hello ", "~{world}", "\"\n    ",
+	}
 	if err != nil {
 		t.Errorf(
 			"Found %d errors in %q, expect no errors", len(err), inputPath,
 		)
 	}
-	resultCommand := result.GetTask()["Command"].Command
+	resultCommand := result.Tasks[0].Command
 	if !reflect.DeepEqual(resultCommand, expectedCommand) {
 		t.Errorf(
 			"Found task command %v, expect %v",
@@ -211,9 +239,9 @@ func TestTaskCommand(t *testing.T) {
 func TestTaskOutput(t *testing.T) {
 	inputPath := "testdata/task_output.wdl"
 	result, err := wdlparser.Antlr4Parse(inputPath)
-	expectedOutput := map[string]wdlparser.Decl{
-		"output_file": wdlparser.NewObject(
-			wdlparser.Opt, "output_file", "File", "stdout()",
+	expectedOutput := []*wdlparser.Object{
+		wdlparser.NewObject(
+			47, 73, wdlparser.Opt, "output_file", "File", "stdout()",
 		),
 	}
 	if err != nil {
@@ -221,7 +249,7 @@ func TestTaskOutput(t *testing.T) {
 			"Found %d errors in %q, expect no errors", len(err), inputPath,
 		)
 	}
-	resultOutput := result.GetTask()["Output"].GetOutput()
+	resultOutput := result.Tasks[0].Outputs
 	if !reflect.DeepEqual(resultOutput, expectedOutput) {
 		t.Errorf(
 			"Found task output %v, expect %v",
@@ -233,9 +261,9 @@ func TestTaskOutput(t *testing.T) {
 func TestTaskRuntime(t *testing.T) {
 	inputPath := "testdata/task_runtime.wdl"
 	result, err := wdlparser.Antlr4Parse(inputPath)
-	expectedRuntime := map[string]wdlparser.Decl{
+	expectedRuntime := map[string]*wdlparser.Object{
 		"container": wdlparser.NewObject(
-			wdlparser.Rnt, "container", "", `"ubuntu:latest"`,
+			50, 75, wdlparser.Rnt, "container", "", `"ubuntu:latest"`,
 		),
 	}
 	if err != nil {
@@ -243,7 +271,7 @@ func TestTaskRuntime(t *testing.T) {
 			"Found %d errors in %q, expect no errors", len(err), inputPath,
 		)
 	}
-	resultRuntime := result.GetTask()["Runtime"].GetRuntime()
+	resultRuntime := result.Tasks[0].Runtime
 	if !reflect.DeepEqual(resultRuntime, expectedRuntime) {
 		t.Errorf(
 			"Found task runtime %v, expect %v",
@@ -255,15 +283,15 @@ func TestTaskRuntime(t *testing.T) {
 func TestTaskMeta(t *testing.T) {
 	inputPath := "testdata/task_meta.wdl"
 	result, err := wdlparser.Antlr4Parse(inputPath)
-	expectedMeta := map[string]wdlparser.Decl{
+	expectedMeta := map[string]*wdlparser.Object{
 		"author": wdlparser.NewObject(
-			wdlparser.Mtd, "author", "", `"Yunhai Luo"`,
+			44, 63, wdlparser.Mtd, "author", "", `"Yunhai Luo"`,
 		),
 		"version": wdlparser.NewObject(
-			wdlparser.Mtd, "version", "", "1.1",
+			73, 84, wdlparser.Mtd, "version", "", "1.1",
 		),
 		"for": wdlparser.NewObject(
-			wdlparser.Mtd, "for", "", `"task"`,
+			94, 104, wdlparser.Mtd, "for", "", `"task"`,
 		),
 	}
 	if err != nil {
@@ -271,7 +299,7 @@ func TestTaskMeta(t *testing.T) {
 			"Found %d errors in %q, expect no errors", len(err), inputPath,
 		)
 	}
-	resultMeta := result.GetTask()["Meta"].GetMetadata()
+	resultMeta := result.Tasks[0].Meta
 	if !reflect.DeepEqual(resultMeta, expectedMeta) {
 		t.Errorf(
 			"Found task metadata %v, expect %v",
@@ -283,9 +311,9 @@ func TestTaskMeta(t *testing.T) {
 func TestTaskParameterMeta(t *testing.T) {
 	inputPath := "testdata/task_parameter_meta.wdl"
 	result, err := wdlparser.Antlr4Parse(inputPath)
-	expectedParameterMeta := map[string]wdlparser.Decl{
+	expectedParameterMeta := map[string]*wdlparser.Object{
 		"name": wdlparser.NewObject(
-			wdlparser.Pmt, "name", "", `{help:"One name as task input"}`,
+			63, 122, wdlparser.Pmt, "name", "", `{help:"One name as task input"}`,
 		),
 	}
 	if err != nil {
@@ -293,7 +321,7 @@ func TestTaskParameterMeta(t *testing.T) {
 			"Found %d errors in %q, expect no errors", len(err), inputPath,
 		)
 	}
-	resultParameterMeta := result.GetTask()["ParameterMeta"].GetParameterMetadata()
+	resultParameterMeta := result.Tasks[0].ParameterMeta
 	if !reflect.DeepEqual(resultParameterMeta, expectedParameterMeta) {
 		t.Errorf(
 			"Found task parameter metadata %v, expect %v",

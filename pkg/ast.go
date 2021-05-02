@@ -5,49 +5,51 @@ import (
 	"strings"
 )
 
-// All named WDL entities implement the decl interface.
-type Decl interface {
-	getAlias() string
-	setAlias(string)
-	getKind() objKind
-	setKind(objKind)
-	getName() string
-	getType() identType
-	GetValue() identValue
-}
-
-// ObjKind describes what WDL entity an object represents.
-type objKind int
+// nodeKind describes what WDL entity a node represents.
+type nodeKind int
 
 const (
-	doc objKind = iota // WDL document
-	imp                // import
-	wfl                // workflow
-	tsk                // task
-	Ipt                // input
-	Opt                // output
-	Rnt                // runtime
-	Mtd                // metadata
-	Pmt                // parameter metadata
-	Dcl                // general declaration
+	doc nodeKind = iota // WDL document
+	imp                 // import
+	wfl                 // workflow
+	tsk                 // task
+	Ipt                 // input
+	Opt                 // output
+	Rnt                 // runtime
+	Mtd                 // metadata
+	Pmt                 // parameter metadata
+	Dcl                 // general declaration
 )
+
+type node interface {
+	getStart() int // position of first character belonging to the node, 0-based
+	getEnd() int   // position of last character belonging to the node, 0-based
+	getParent() node
+	getKind() nodeKind
+	setKind(nodeKind)
+}
 
 type identType string
 
 type identValue string
 
-// An object represents a generic (private) declaration, input, output, runtime
+// An Object represents a generic (private) declaration, input, output, runtime
 // metadata or parameter metadata entry.
-type object struct {
-	alias string
-	kind  objKind
-	name  string
-	typ   identType
-	value identValue
+type Object struct {
+	start, end  int
+	parent      node
+	kind        nodeKind
+	alias, name string
+	typ         identType
+	value       identValue
 }
 
-func NewObject(kind objKind, name, rawType, rawValue string) *object {
-	s := new(object)
+func NewObject(
+	start, end int, kind nodeKind, name, rawType, rawValue string,
+) *Object {
+	s := new(Object)
+	s.start = start
+	s.end = end
 	s.kind = kind
 	s.name = name
 	s.typ = identType(rawType)
@@ -55,114 +57,59 @@ func NewObject(kind objKind, name, rawType, rawValue string) *object {
 	return s
 }
 
-func (s *object) getAlias() string {
-	return s.alias
+func (s *Object) getStart() int {
+	return s.start
 }
 
-func (s *object) setAlias(a string) {
-	s.alias = a
+func (s *Object) getEnd() int {
+	return s.end
 }
 
-func (s *object) getKind() objKind {
-	return s.kind
-}
-
-func (s *object) setKind(kind objKind) {
-	s.kind = kind
-}
-
-func (s *object) getName() string {
-	return s.name
-}
-
-func (s *object) getType() identType {
-	return s.typ
-}
-
-func (s *object) GetValue() identValue {
-	return s.value
-}
-
-// All WDL namespaces implement the namespace interface.
-type namespace interface {
-	getParent() namespace
-	setParent(namespace)
-	getChildren() []namespace
-	getDeclarations() []Decl
-	getDeclaration(objKind) map[string]Decl
-	addDeclaration(Decl)
-}
-
-type scope struct {
-	parent   namespace
-	children []namespace
-	body     []Decl
-}
-
-func newScope() *scope {
-	return new(scope)
-}
-
-func (s *scope) getParent() namespace {
+func (s *Object) getParent() node {
 	return s.parent
 }
 
-func (s *scope) setParent(parent namespace) {
+func (s *Object) setParent(parent node) {
 	s.parent = parent
 }
 
-func (s *scope) getChildren() []namespace {
-	return s.children
+func (s *Object) getKind() nodeKind {
+	return s.kind
 }
 
-func (s *scope) getDeclarations() []Decl {
-	return s.body
+func (s *Object) GetAlias() string {
+	return s.alias
 }
 
-func (s *scope) getDeclaration(k objKind) map[string]Decl {
-	ret := map[string]Decl{}
-	for _, d := range s.body {
-		if d.getKind() == k {
-			k := d.getName()
-			if d.getAlias() != "" {
-				k = d.getAlias()
-			}
-			ret[k] = d
-		}
-	}
-	return ret
+func (s *Object) setAlias(a string) {
+	s.alias = a
 }
 
-func (s *scope) addDeclaration(d Decl) {
-	s.body = append(s.body, d)
+func (s *Object) setKind(kind nodeKind) {
+	s.kind = kind
 }
 
-type scopedObject struct {
-	scope
-	object
-}
-
-func newScopedIdenifier(
-	kind objKind, name, rawType, rawValue string,
-) *scopedObject {
-	so := new(scopedObject)
-	so.scope = *newScope()
-	so.object = *NewObject(kind, name, rawType, rawValue)
-	return so
+func (s *Object) GetName() string {
+	return s.name
 }
 
 // A WDL represents a parsed WDL document.
 type WDL struct {
-	scopedObject
-	Path    string
-	Version string
-	Body    []object
+	Object
+	Path     string
+	Version  string
+	Imports  []*WDL
+	Workflow *Workflow
+	Tasks    []*Task
+	Structs  []*Object
 }
 
-func NewWDL(wdlPath string) *WDL {
+func NewWDL(wdlPath string, size int) *WDL {
 	wdl := new(WDL)
 	wdl.Path = wdlPath
-	wdl.scopedObject = *newScopedIdenifier(
+	wdl.Object = *NewObject(
+		0,
+		size-1,
 		doc,
 		strings.TrimSuffix(path.Base(wdlPath), ".wdl"),
 		"",
@@ -171,100 +118,35 @@ func NewWDL(wdlPath string) *WDL {
 	return wdl
 }
 
-func (wdl WDL) GetImports() map[string]*WDL {
-	ret := map[string]*WDL{}
-	for _, d := range wdl.getDeclarations() {
-		if w, ok := d.(*WDL); ok {
-			k := w.getName()
-			if w.getAlias() != "" {
-				k = w.getAlias()
-			}
-			ret[k] = w
-		}
-	}
-	return ret
-}
-
-func (wdl WDL) GetWorkflow() map[string]*Workflow {
-	ret := map[string]*Workflow{}
-	for _, d := range wdl.getDeclarations() {
-		if w, ok := d.(*Workflow); ok {
-			ret[w.getName()] = w
-		}
-	}
-	return ret
-}
-
-func (wdl WDL) GetTask() map[string]*Task {
-	ret := map[string]*Task{}
-	for _, d := range wdl.getDeclarations() {
-		if w, ok := d.(*Task); ok {
-			ret[w.getName()] = w
-		}
-	}
-	return ret
-}
-
 // A Workflow represents one parsed workflow
 type Workflow struct {
-	scopedObject
-	Elements []string
+	Object
+	Inputs, PrvtDecls, Outputs []*Object
+	Meta, ParameterMeta        map[string]*Object
+	Elements                   []string
 }
 
-func NewWorkflow(name string) *Workflow {
+func NewWorkflow(start, end int, name string) *Workflow {
 	workflow := new(Workflow)
-	workflow.scopedObject = *newScopedIdenifier(wfl, name, "", "")
+	workflow.Object = *NewObject(start, end, wfl, name, "", "")
+	workflow.Meta = make(map[string]*Object)
+	workflow.ParameterMeta = make(map[string]*Object)
 	return workflow
-}
-
-func (wf Workflow) GetInput() map[string]Decl {
-	return wf.getDeclaration(Ipt)
-}
-
-func (wf Workflow) GetOutput() map[string]Decl {
-	return wf.getDeclaration(Opt)
-}
-
-func (wf Workflow) GetMetadata() map[string]Decl {
-	return wf.getDeclaration(Mtd)
-}
-
-func (wf Workflow) GetParameterMetadata() map[string]Decl {
-	return wf.getDeclaration(Pmt)
 }
 
 // A Task represents one parsed task
 type Task struct {
-	scopedObject
-	Elements, Command []string
+	Object
+	Inputs, PrvtDecls, Outputs   []*Object
+	Command                      []string
+	Runtime, Meta, ParameterMeta map[string]*Object
 }
 
-func NewTask(name string) *Task {
+func NewTask(start, end int, name string) *Task {
 	task := new(Task)
-	task.scopedObject = *newScopedIdenifier(tsk, name, "", "")
+	task.Object = *NewObject(start, end, tsk, name, "", "")
+	task.Runtime = make(map[string]*Object)
+	task.Meta = make(map[string]*Object)
+	task.ParameterMeta = make(map[string]*Object)
 	return task
-}
-
-func (t Task) GetInput() map[string]Decl {
-	return t.getDeclaration(Ipt)
-}
-
-func (t Task) GetPrivateDecl() map[string]Decl {
-	return t.getDeclaration(Dcl)
-}
-
-func (t Task) GetOutput() map[string]Decl {
-	return t.getDeclaration(Opt)
-}
-
-func (t Task) GetRuntime() map[string]Decl {
-	return t.getDeclaration(Rnt)
-}
-
-func (t Task) GetMetadata() map[string]Decl {
-	return t.getDeclaration(Mtd)
-}
-
-func (t Task) GetParameterMetadata() map[string]Decl {
-	return t.getDeclaration(Pmt)
 }
