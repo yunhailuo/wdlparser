@@ -30,31 +30,23 @@ type node interface {
 	setKind(nodeKind)
 }
 
-type identType string
-
-type identValue string
-
-// An Object represents a generic (private) declaration, input, output, runtime
-// metadata or parameter metadata entry.
+// An object represents a named language entity such as input, private
+// declaration, output, runtime metadata or parameter metadata.
 type object struct {
 	start, end  int
 	parent      node
 	kind        nodeKind
 	alias, name string
-	typ         identType
-	value       identValue
 }
 
 func newObject(
-	start, end int, kind nodeKind, name, rawType, rawValue string,
+	start, end int, kind nodeKind, name string,
 ) *object {
 	s := new(object)
 	s.start = start
 	s.end = end
 	s.kind = kind
 	s.name = name
-	s.typ = identType(rawType)
-	s.value = identValue(rawValue)
 	return s
 }
 
@@ -94,6 +86,43 @@ func (s *object) setName(n string) {
 	s.name = n
 }
 
+type declType string
+
+type declValue string
+
+// An decl represents a declaration.
+type decl struct {
+	object
+	typ   declType
+	value declValue
+}
+
+func newDecl(
+	start, end int, kind nodeKind, name, rawType, rawValue string,
+) *decl {
+	d := new(decl)
+	d.object = *newObject(start, end, kind, name)
+	d.typ = declType(rawType)
+	d.value = declValue(rawValue)
+	return d
+}
+
+// A keyValue represents a key/value pair defined in call input, runtime,
+// metadata or parameter metadata sections.
+type keyValue struct {
+	object
+	value string
+}
+
+func newKeyValue(
+	start, end int, kind nodeKind, key, value string,
+) *keyValue {
+	kv := new(keyValue)
+	kv.object = *newObject(start, end, kind, key)
+	kv.value = value
+	return kv
+}
+
 // A WDL represents a parsed WDL document.
 type WDL struct {
 	object
@@ -102,7 +131,7 @@ type WDL struct {
 	Imports  []*WDL
 	Workflow *Workflow
 	Tasks    []*Task
-	Structs  []*object
+	Structs  []*decl
 }
 
 func NewWDL(wdlPath string, size int) *WDL {
@@ -113,8 +142,6 @@ func NewWDL(wdlPath string, size int) *WDL {
 		size-1,
 		doc,
 		strings.TrimSuffix(path.Base(wdlPath), ".wdl"),
-		"",
-		"",
 	)
 	return wdl
 }
@@ -122,17 +149,17 @@ func NewWDL(wdlPath string, size int) *WDL {
 // A Workflow represents one parsed workflow
 type Workflow struct {
 	object
-	Inputs, PrvtDecls, Outputs []*object
+	Inputs, PrvtDecls, Outputs []*decl
 	Calls                      []*Call
-	Meta, ParameterMeta        map[string]*object
+	Meta, ParameterMeta        map[string]*keyValue
 	Elements                   []string
 }
 
 func NewWorkflow(start, end int, name string) *Workflow {
 	workflow := new(Workflow)
-	workflow.object = *newObject(start, end, wfl, name, "", "")
-	workflow.Meta = make(map[string]*object)
-	workflow.ParameterMeta = make(map[string]*object)
+	workflow.object = *newObject(start, end, wfl, name)
+	workflow.Meta = make(map[string]*keyValue)
+	workflow.ParameterMeta = make(map[string]*keyValue)
 	return workflow
 }
 
@@ -140,28 +167,28 @@ func NewWorkflow(start, end int, name string) *Workflow {
 type Call struct {
 	object
 	After  string
-	Inputs []*object
+	Inputs []*keyValue
 }
 
 func NewCall(start, end int, name string) *Call {
 	call := new(Call)
-	call.object = *newObject(start, end, cal, name, "", "")
+	call.object = *newObject(start, end, cal, name)
 	return call
 }
 
 // A Task represents one parsed task
 type Task struct {
 	object
-	Inputs, PrvtDecls, Outputs   []*object
+	Inputs, PrvtDecls, Outputs   []*decl
 	Command                      []string
-	Runtime, Meta, ParameterMeta map[string]*object
+	Runtime, Meta, ParameterMeta map[string]*keyValue
 }
 
 func NewTask(start, end int, name string) *Task {
 	task := new(Task)
-	task.object = *newObject(start, end, tsk, name, "", "")
-	task.Runtime = make(map[string]*object)
-	task.Meta = make(map[string]*object)
-	task.ParameterMeta = make(map[string]*object)
+	task.object = *newObject(start, end, tsk, name)
+	task.Runtime = make(map[string]*keyValue)
+	task.Meta = make(map[string]*keyValue)
+	task.ParameterMeta = make(map[string]*keyValue)
 	return task
 }

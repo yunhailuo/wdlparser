@@ -50,11 +50,11 @@ func TestImport(t *testing.T) {
 func TestWorkflowInput(t *testing.T) {
 	inputPath := "testdata/workflow_input.wdl"
 	result, err := Antlr4Parse(inputPath)
-	expectedInput := []*object{
-		newObject(
+	expectedInput := []*decl{
+		newDecl(
 			50, 65, ipt, "input_str", "String", "",
 		),
-		newObject(
+		newDecl(
 			75, 94, ipt, "input_file_path", "File", "",
 		),
 	}
@@ -75,8 +75,8 @@ func TestWorkflowInput(t *testing.T) {
 func TestWorkflowPrivateDeclaration(t *testing.T) {
 	inputPath := "testdata/workflow_private_declaration.wdl"
 	result, err := Antlr4Parse(inputPath)
-	expectedPrivateDecl := []*object{
-		newObject(
+	expectedPrivateDecl := []*decl{
+		newDecl(
 			47, 64, dcl, "s", "String", `"Hello"`,
 		),
 	}
@@ -99,19 +99,19 @@ func TestWorkflowCall(t *testing.T) {
 	result, err := Antlr4Parse(inputPath)
 	expectedFirstCall := NewCall(39, 150, "Greeting")
 	expectedFirstCall.setAlias("hello")
-	expectedFirstCall.Inputs = []*object{
-		newObject(
-			91, 113, ipt, "first_name", "", "first_name",
+	expectedFirstCall.Inputs = []*keyValue{
+		newKeyValue(
+			91, 113, ipt, "first_name", "first_name",
 		),
-		newObject(
-			128, 144, ipt, "last_name", "", `"Luo"`,
+		newKeyValue(
+			128, 144, ipt, "last_name", `"Luo"`,
 		),
 	}
 	expectedSecondCall := NewCall(156, 213, "Goodbye")
 	expectedSecondCall.After = "hello"
-	expectedSecondCall.Inputs = []*object{
-		newObject(
-			190, 210, ipt, "first_name", "", `"Yunhai"`,
+	expectedSecondCall.Inputs = []*keyValue{
+		newKeyValue(
+			190, 210, ipt, "first_name", `"Yunhai"`,
 		),
 	}
 	expectCalls := []*Call{expectedFirstCall, expectedSecondCall}
@@ -135,8 +135,8 @@ func TestWorkflowCall(t *testing.T) {
 func TestWorkflowOutput(t *testing.T) {
 	inputPath := "testdata/workflow_output.wdl"
 	result, err := Antlr4Parse(inputPath)
-	expectedOutput := []*object{
-		newObject(
+	expectedOutput := []*decl{
+		newDecl(
 			52, 87, opt, "output_file", "File", `"/Path/to/output"`,
 		),
 	}
@@ -157,15 +157,15 @@ func TestWorkflowOutput(t *testing.T) {
 func TestWorkflowMeta(t *testing.T) {
 	inputPath := "testdata/workflow_meta.wdl"
 	result, err := Antlr4Parse(inputPath)
-	expectedMeta := map[string]*object{
-		"author": newObject(
-			48, 67, mtd, "author", "", `"Yunhai Luo"`,
+	expectedMeta := map[string]*keyValue{
+		"author": newKeyValue(
+			48, 67, mtd, "author", `"Yunhai Luo"`,
 		),
-		"version": newObject(
-			77, 88, mtd, "version", "", "1.1",
+		"version": newKeyValue(
+			77, 88, mtd, "version", "1.1",
 		),
-		"for": newObject(
-			98, 112, mtd, "for", "", `"workflow"`,
+		"for": newKeyValue(
+			98, 112, mtd, "for", `"workflow"`,
 		),
 	}
 	if err != nil {
@@ -185,9 +185,9 @@ func TestWorkflowMeta(t *testing.T) {
 func TestWorkflowParameterMeta(t *testing.T) {
 	inputPath := "testdata/workflow_parameter_meta.wdl"
 	result, err := Antlr4Parse(inputPath)
-	expectedParameterMeta := map[string]*object{
-		"name": newObject(
-			67, 129, pmt, "name", "", `{help:"A name for workflow input"}`,
+	expectedParameterMeta := map[string]*keyValue{
+		"name": newKeyValue(
+			67, 129, pmt, "name", `{help:"A name for workflow input"}`,
 		),
 	}
 	if err != nil {
@@ -207,8 +207,8 @@ func TestWorkflowParameterMeta(t *testing.T) {
 func TestTaskInput(t *testing.T) {
 	inputPath := "testdata/task_input.wdl"
 	result, err := Antlr4Parse(inputPath)
-	expectedInput := []*object{
-		newObject(
+	expectedInput := []*decl{
+		newDecl(
 			46, 66, ipt, "name", "String", `"World"`,
 		),
 	}
@@ -229,8 +229,8 @@ func TestTaskInput(t *testing.T) {
 func TestTaskPrivateDeclaration(t *testing.T) {
 	inputPath := "testdata/task_private_declaration.wdl"
 	result, err := Antlr4Parse(inputPath)
-	expectedPrivateDecl := []*object{
-		newObject(
+	expectedPrivateDecl := []*decl{
+		newDecl(
 			43, 60, dcl, "s", "String", `"Hello"`,
 		),
 	}
@@ -271,8 +271,8 @@ func TestTaskCommand(t *testing.T) {
 func TestTaskOutput(t *testing.T) {
 	inputPath := "testdata/task_output.wdl"
 	result, err := Antlr4Parse(inputPath)
-	expectedOutput := []*object{
-		newObject(
+	expectedOutput := []*decl{
+		newDecl(
 			47, 73, opt, "output_file", "File", "stdout()",
 		),
 	}
@@ -293,9 +293,9 @@ func TestTaskOutput(t *testing.T) {
 func TestTaskRuntime(t *testing.T) {
 	inputPath := "testdata/task_runtime.wdl"
 	result, err := Antlr4Parse(inputPath)
-	expectedRuntime := map[string]*object{
-		"container": newObject(
-			50, 75, rnt, "container", "", `"ubuntu:latest"`,
+	expectedRuntime := map[string]*keyValue{
+		"container": newKeyValue(
+			50, 75, rnt, "container", `"ubuntu:latest"`,
 		),
 	}
 	if err != nil {
@@ -315,15 +315,15 @@ func TestTaskRuntime(t *testing.T) {
 func TestTaskMeta(t *testing.T) {
 	inputPath := "testdata/task_meta.wdl"
 	result, err := Antlr4Parse(inputPath)
-	expectedMeta := map[string]*object{
-		"author": newObject(
-			44, 63, mtd, "author", "", `"Yunhai Luo"`,
+	expectedMeta := map[string]*keyValue{
+		"author": newKeyValue(
+			44, 63, mtd, "author", `"Yunhai Luo"`,
 		),
-		"version": newObject(
-			73, 84, mtd, "version", "", "1.1",
+		"version": newKeyValue(
+			73, 84, mtd, "version", "1.1",
 		),
-		"for": newObject(
-			94, 104, mtd, "for", "", `"task"`,
+		"for": newKeyValue(
+			94, 104, mtd, "for", `"task"`,
 		),
 	}
 	if err != nil {
@@ -343,9 +343,9 @@ func TestTaskMeta(t *testing.T) {
 func TestTaskParameterMeta(t *testing.T) {
 	inputPath := "testdata/task_parameter_meta.wdl"
 	result, err := Antlr4Parse(inputPath)
-	expectedParameterMeta := map[string]*object{
-		"name": newObject(
-			63, 122, pmt, "name", "", `{help:"One name as task input"}`,
+	expectedParameterMeta := map[string]*keyValue{
+		"name": newKeyValue(
+			63, 122, pmt, "name", `{help:"One name as task input"}`,
 		),
 	}
 	if err != nil {

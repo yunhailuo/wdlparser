@@ -50,7 +50,7 @@ func (l *wdlv1_1Listener) ExitUnbound_decls(ctx *parser.Unbound_declsContext) {
 		// any_decls in the current grammar can only be workflow or task inputs
 		kind = ipt
 	}
-	obj := newObject(
+	obj := newDecl(
 		ctx.GetStart().GetStart(),
 		ctx.GetStop().GetStop(),
 		kind,
@@ -103,7 +103,7 @@ func (l *wdlv1_1Listener) ExitBound_decls(ctx *parser.Bound_declsContext) {
 	case *parser.Workflow_outputContext, *parser.Task_outputContext:
 		kind = opt
 	}
-	obj := newObject(
+	obj := newDecl(
 		ctx.GetStart().GetStart(),
 		ctx.GetStop().GetStop(),
 		kind,
@@ -157,12 +157,11 @@ func (l *wdlv1_1Listener) EnterMeta_kv(ctx *parser.Meta_kvContext) {
 			c,
 		)
 	}
-	obj := newObject(
+	obj := newKeyValue(
 		ctx.GetStart().GetStart(),
 		ctx.GetStop().GetStop(),
 		kind,
 		ctx.MetaIdentifier().GetText(),
-		"",
 		ctx.Meta_value().GetText(),
 	)
 	// Put the object into AST
@@ -301,12 +300,11 @@ func (l *wdlv1_1Listener) ExitCall_input(ctx *parser.Call_inputContext) {
 	}
 	call.Inputs = append(
 		call.Inputs,
-		newObject(
+		newKeyValue(
 			ctx.GetStart().GetStart(),
 			ctx.GetStop().GetStop(),
 			ipt,
 			ctx.Identifier().GetText(),
-			"",
 			ctx.Expr().GetText(),
 		),
 	)
@@ -375,12 +373,11 @@ func (l *wdlv1_1Listener) ExitTask_runtime_kv(
 	ctx *parser.Task_runtime_kvContext,
 ) {
 	if t, ok := l.currentNode.(*Task); ok {
-		t.Runtime[ctx.Identifier().GetText()] = newObject(
+		t.Runtime[ctx.Identifier().GetText()] = newKeyValue(
 			ctx.GetStart().GetStart(),
 			ctx.GetStop().GetStop(),
 			rnt,
 			ctx.Identifier().GetText(),
-			"",
 			ctx.Expr().GetText(),
 		)
 	} else {
