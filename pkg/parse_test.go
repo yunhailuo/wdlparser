@@ -121,8 +121,8 @@ func TestWorkflowCall(t *testing.T) {
 		)
 	}
 	resultCalls := result.Workflow.Calls
-	for _, c := range resultCalls {
-		c.setParent(nil)
+	for _, c := range expectCalls {
+		c.setParent(result.Workflow)
 	}
 	if !reflect.DeepEqual(resultCalls, expectCalls) {
 		t.Errorf(

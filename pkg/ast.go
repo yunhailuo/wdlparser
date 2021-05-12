@@ -25,9 +25,16 @@ const (
 type node interface {
 	getStart() int // position of first character belonging to the node, 0-based
 	getEnd() int   // position of last character belonging to the node, 0-based
-	getParent() node
 	getKind() nodeKind
 	setKind(nodeKind)
+
+	// Ideally, children should be a list of unique nodes (i.e. a set).
+	// Two nodes are considered identical if and only if the have the same
+	// start and end.
+	getParent() node
+	setParent(node)
+	getChildren() []node
+	addChild(node)
 }
 
 // An object represents a named language entity such as input, private
@@ -35,6 +42,7 @@ type node interface {
 type object struct {
 	start, end  int
 	parent      node
+	children    []node
 	kind        nodeKind
 	alias, name string
 }
@@ -64,6 +72,23 @@ func (s *object) getParent() node {
 
 func (s *object) setParent(parent node) {
 	s.parent = parent
+	parent.addChild(s)
+}
+
+func (s *object) getChildren() []node {
+	return s.children
+}
+
+func (s *object) addChild(n node) {
+	newStart := n.getStart()
+	newEnd := n.getEnd()
+	for _, child := range s.children {
+		if (child.getStart() == newStart) && (child.getEnd() == newEnd) {
+			return
+		}
+	}
+	s.children = append(s.children, n)
+	// Note that this add child method will not set parent on node `n`
 }
 
 func (s *object) getKind() nodeKind {
