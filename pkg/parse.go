@@ -93,7 +93,7 @@ func (l *wdlv1_1Listener) ExitUnbound_decls(ctx *parser.Unbound_declsContext) {
 	}
 }
 
-func (l *wdlv1_1Listener) ExitBound_decls(ctx *parser.Bound_declsContext) {
+func (l *wdlv1_1Listener) EnterBound_decls(ctx *parser.Bound_declsContext) {
 	// Build an input, output or declaration object
 	var kind nodeKind = dcl
 	switch ctx.GetParent().(type) {
@@ -111,8 +111,27 @@ func (l *wdlv1_1Listener) ExitBound_decls(ctx *parser.Bound_declsContext) {
 		ctx.Wdl_type().GetText(),
 		ctx.Expr().GetText(),
 	)
+	obj.setParent(l.currentNode)
+	l.currentNode = obj
+}
+
+func (l *wdlv1_1Listener) ExitBound_decls(ctx *parser.Bound_declsContext) {
+	parent := l.currentNode.getParent()
+	obj, ok := l.currentNode.(*decl)
+	if !ok {
+		log.Fatal(
+			newMismatchContextError(
+				ctx.GetStart().GetLine(),
+				ctx.GetStart().GetColumn(),
+				"bound declaration",
+				"declaration",
+				l.currentNode,
+			),
+		)
+	}
+	kind := l.currentNode.getKind()
 	// Put the object into AST
-	switch n := l.currentNode.(type) {
+	switch n := parent.(type) {
 	case *Workflow:
 		if kind == dcl {
 			n.PrvtDecls = append(n.PrvtDecls, obj)
@@ -138,6 +157,7 @@ func (l *wdlv1_1Listener) ExitBound_decls(ctx *parser.Bound_declsContext) {
 			n,
 		)
 	}
+	l.currentNode = parent
 }
 
 func (l *wdlv1_1Listener) EnterMeta_kv(ctx *parser.Meta_kvContext) {

@@ -86,6 +86,9 @@ func TestWorkflowPrivateDeclaration(t *testing.T) {
 		)
 	}
 	resultPrivateDecl := result.Workflow.PrvtDecls
+	for _, c := range expectedPrivateDecl {
+		c.setParent(result.Workflow)
+	}
 	if !reflect.DeepEqual(resultPrivateDecl, expectedPrivateDecl) {
 		t.Errorf(
 			"Found workflow private declaration %v, expect %v",
@@ -146,6 +149,9 @@ func TestWorkflowOutput(t *testing.T) {
 		)
 	}
 	resultOutput := result.Workflow.Outputs
+	for _, c := range expectedOutput {
+		c.setParent(result.Workflow)
+	}
 	if !reflect.DeepEqual(resultOutput, expectedOutput) {
 		t.Errorf(
 			"Found workflow output %v, expect %v",
@@ -218,6 +224,9 @@ func TestTaskInput(t *testing.T) {
 		)
 	}
 	resultInput := result.Tasks[0].Inputs
+	for _, c := range expectedInput {
+		c.setParent(result.Tasks[0])
+	}
 	if !reflect.DeepEqual(resultInput, expectedInput) {
 		t.Errorf(
 			"Found task input %v, expect %v",
@@ -240,6 +249,9 @@ func TestTaskPrivateDeclaration(t *testing.T) {
 		)
 	}
 	resultPrivateDecl := result.Tasks[0].PrvtDecls
+	for _, c := range expectedPrivateDecl {
+		c.setParent(result.Tasks[0])
+	}
 	if !reflect.DeepEqual(resultPrivateDecl, expectedPrivateDecl) {
 		t.Errorf(
 			"Found task private declaration %v, expect %v",
@@ -282,6 +294,9 @@ func TestTaskOutput(t *testing.T) {
 		)
 	}
 	resultOutput := result.Tasks[0].Outputs
+	for _, c := range expectedOutput {
+		c.setParent(result.Tasks[0])
+	}
 	if !reflect.DeepEqual(resultOutput, expectedOutput) {
 		t.Errorf(
 			"Found task output %v, expect %v",
