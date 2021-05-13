@@ -40,75 +40,78 @@ type node interface {
 // An object represents a named language entity such as input, private
 // declaration, output, runtime metadata or parameter metadata.
 type object struct {
-	start, end  int
-	parent      node
-	children    []node
-	kind        nodeKind
+	// For node interface
+	start, end int
+	kind       nodeKind
+	parent     node
+	children   []node
+
+	// Specific for object
 	alias, name string
 }
 
 func newObject(
 	start, end int, kind nodeKind, name string,
 ) *object {
-	s := new(object)
-	s.start = start
-	s.end = end
-	s.kind = kind
-	s.name = name
-	return s
+	o := new(object)
+	o.start = start
+	o.end = end
+	o.kind = kind
+	o.name = name
+	return o
 }
 
-func (s *object) getStart() int {
-	return s.start
+func (o *object) getStart() int {
+	return o.start
 }
 
-func (s *object) getEnd() int {
-	return s.end
+func (o *object) getEnd() int {
+	return o.end
 }
 
-func (s *object) getParent() node {
-	return s.parent
+func (o *object) getParent() node {
+	return o.parent
 }
 
-func (s *object) setParent(parent node) {
-	s.parent = parent
-	parent.addChild(s)
+func (o *object) setParent(parent node) {
+	o.parent = parent
+	parent.addChild(o)
 }
 
-func (s *object) getChildren() []node {
-	return s.children
+func (o *object) getChildren() []node {
+	return o.children
 }
 
-func (s *object) addChild(n node) {
+func (o *object) addChild(n node) {
 	newStart := n.getStart()
 	newEnd := n.getEnd()
-	for _, child := range s.children {
+	for _, child := range o.children {
 		if (child.getStart() == newStart) && (child.getEnd() == newEnd) {
 			return
 		}
 	}
-	s.children = append(s.children, n)
+	o.children = append(o.children, n)
 	// Note that this add child method will not set parent on node `n`
 }
 
-func (s *object) getKind() nodeKind {
-	return s.kind
+func (o *object) getKind() nodeKind {
+	return o.kind
 }
 
-func (s *object) setKind(kind nodeKind) {
-	s.kind = kind
+func (o *object) setKind(kind nodeKind) {
+	o.kind = kind
 }
 
-func (s *object) setAlias(a string) {
-	s.alias = a
+func (o *object) setAlias(a string) {
+	o.alias = a
 }
 
-func (s *object) getName() string {
-	return s.name
+func (o *object) getName() string {
+	return o.name
 }
 
-func (s *object) setName(n string) {
-	s.name = n
+func (o *object) setName(n string) {
+	o.name = n
 }
 
 type declType string
@@ -171,7 +174,7 @@ func NewWDL(wdlPath string, size int) *WDL {
 	return wdl
 }
 
-// A Workflow represents one parsed workflow
+// A Workflow represents one parsed workflow.
 type Workflow struct {
 	object
 	Inputs, PrvtDecls, Outputs []*decl
@@ -188,7 +191,7 @@ func NewWorkflow(start, end int, name string) *Workflow {
 	return workflow
 }
 
-// A Call represents one parsed call
+// A Call represents one parsed call.
 type Call struct {
 	object
 	After  string
@@ -201,7 +204,7 @@ func NewCall(start, end int, name string) *Call {
 	return call
 }
 
-// A Task represents one parsed task
+// A Task represents one parsed task.
 type Task struct {
 	object
 	Inputs, PrvtDecls, Outputs   []*decl
