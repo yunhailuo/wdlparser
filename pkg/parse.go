@@ -453,9 +453,9 @@ func Antlr4Parse(input string) (*WDL, []wdlSyntaxError) {
 	inputInfo, err := os.Stat(input)
 	var inputStream antlr.CharStream
 	var path string = input
-	if os.IsNotExist(err) {
+	if err != nil {
 		log.Println(
-			"Input is not a file path" +
+			"Input is not a valid file path" +
 				" so guessing it's a WDL document in string.",
 		)
 		path = ""
