@@ -20,6 +20,7 @@ const (
 	mtd                 // metadata
 	pmt                 // parameter metadata
 	dcl                 // general declaration
+	exp                 // expression
 )
 
 type node interface {
@@ -121,6 +122,7 @@ type declValue string
 // An decl represents a declaration.
 type decl struct {
 	object
+	expr  *expr
 	typ   declType
 	value declValue
 }

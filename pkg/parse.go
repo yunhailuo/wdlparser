@@ -130,6 +130,23 @@ func (l *wdlv1_1Listener) ExitBound_decls(ctx *parser.Bound_declsContext) {
 		)
 	}
 	kind := l.currentNode.getKind()
+	var exprs []*expr
+	for _, child := range obj.getChildren() {
+		if e, ok := child.(*expr); ok {
+			exprs = append(exprs, e)
+		}
+	}
+	exprCount := len(exprs)
+	if exprCount > 1 {
+		log.Fatalf(
+			"Parser error: bound declaration can have only one child"+
+				" expressions, found %v",
+			exprCount,
+		)
+	}
+	if exprCount == 1 {
+		obj.expr = exprs[0]
+	}
 	// Put the object into AST
 	switch n := parent.(type) {
 	case *Workflow:
