@@ -87,7 +87,7 @@ func (e *expr) addChild(n node) {
 func (e *expr) getChildExprs() []*expr {
 	var exprs []*expr
 	for _, child := range e.getChildren() {
-		if ce, ok := child.(*expr); ok {
+		if ce, isExpr := child.(*expr); isExpr {
 			exprs = append(exprs, ce)
 		}
 	}
@@ -109,15 +109,15 @@ func (l *wdlv1_1Listener) EnterLor(ctx *parser.LorContext) {
 		if errY != nil {
 			return nil, errY
 		}
-		xVal, xOk := x.(bool)
-		if !xOk {
+		xVal, xIsBool := x.(bool)
+		if !xIsBool {
 			return nil, fmt.Errorf(
 				"left operand, %v, of OR at %d:%d is not a valid bool",
 				x, e.getStart(), e.getEnd(),
 			)
 		}
-		yVal, yOk := y.(bool)
-		if !yOk {
+		yVal, yIsBool := y.(bool)
+		if !yIsBool {
 			return nil, fmt.Errorf(
 				"right operand, %v, of OR at %d:%d is not a valid bool",
 				y, e.getStart(), e.getEnd(),
@@ -130,8 +130,8 @@ func (l *wdlv1_1Listener) EnterLor(ctx *parser.LorContext) {
 }
 
 func (l *wdlv1_1Listener) ExitLor(ctx *parser.LorContext) {
-	lorExpr, ok := l.currentNode.(*expr)
-	if !ok {
+	lorExpr, isExpr := l.currentNode.(*expr)
+	if !isExpr {
 		log.Fatal(
 			newMismatchContextError(
 				ctx.GetStart().GetLine(),
@@ -169,15 +169,15 @@ func (l *wdlv1_1Listener) EnterLand(ctx *parser.LandContext) {
 		if errY != nil {
 			return nil, errY
 		}
-		xVal, xOk := x.(bool)
-		if !xOk {
+		xVal, xIsBool := x.(bool)
+		if !xIsBool {
 			return nil, fmt.Errorf(
 				"left operand, %v, of AND at %d:%d is not a valid bool",
 				x, e.getStart(), e.getEnd(),
 			)
 		}
-		yVal, yOk := y.(bool)
-		if !yOk {
+		yVal, yIsBool := y.(bool)
+		if !yIsBool {
 			return nil, fmt.Errorf(
 				"right operand, %v, of AND at %d:%d is not a valid bool",
 				y, e.getStart(), e.getEnd(),
@@ -190,8 +190,8 @@ func (l *wdlv1_1Listener) EnterLand(ctx *parser.LandContext) {
 }
 
 func (l *wdlv1_1Listener) ExitLand(ctx *parser.LandContext) {
-	lorExpr, ok := l.currentNode.(*expr)
-	if !ok {
+	lorExpr, isExpr := l.currentNode.(*expr)
+	if !isExpr {
 		log.Fatal(
 			newMismatchContextError(
 				ctx.GetStart().GetLine(),

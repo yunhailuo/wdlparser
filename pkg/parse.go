@@ -117,8 +117,8 @@ func (l *wdlv1_1Listener) EnterBound_decls(ctx *parser.Bound_declsContext) {
 
 func (l *wdlv1_1Listener) ExitBound_decls(ctx *parser.Bound_declsContext) {
 	parent := l.currentNode.getParent()
-	obj, ok := l.currentNode.(*decl)
-	if !ok {
+	obj, isDecl := l.currentNode.(*decl)
+	if !isDecl {
 		log.Fatal(
 			newMismatchContextError(
 				ctx.GetStart().GetLine(),
@@ -132,7 +132,7 @@ func (l *wdlv1_1Listener) ExitBound_decls(ctx *parser.Bound_declsContext) {
 	kind := l.currentNode.getKind()
 	var exprs []*expr
 	for _, child := range obj.getChildren() {
-		if e, ok := child.(*expr); ok {
+		if e, isExpr := child.(*expr); isExpr {
 			exprs = append(exprs, e)
 		}
 	}
@@ -240,8 +240,8 @@ func (l *wdlv1_1Listener) EnterWorkflow(ctx *parser.WorkflowContext) {
 }
 
 func (l *wdlv1_1Listener) ExitWorkflow(ctx *parser.WorkflowContext) {
-	workflow, ok := l.currentNode.(*Workflow)
-	if !ok {
+	workflow, isWorkflow := l.currentNode.(*Workflow)
+	if !isWorkflow {
 		log.Fatal(
 			newMismatchContextError(
 				ctx.GetStart().GetLine(),
@@ -275,8 +275,8 @@ func (l *wdlv1_1Listener) EnterCall(ctx *parser.CallContext) {
 }
 
 func (l *wdlv1_1Listener) ExitCall_name(ctx *parser.Call_nameContext) {
-	call, ok := l.currentNode.(*Call)
-	if !ok {
+	call, isCall := l.currentNode.(*Call)
+	if !isCall {
 		log.Fatal(
 			newMismatchContextError(
 				ctx.GetStart().GetLine(),
@@ -291,8 +291,8 @@ func (l *wdlv1_1Listener) ExitCall_name(ctx *parser.Call_nameContext) {
 }
 
 func (l *wdlv1_1Listener) ExitCall_alias(ctx *parser.Call_aliasContext) {
-	call, ok := l.currentNode.(*Call)
-	if !ok {
+	call, isCall := l.currentNode.(*Call)
+	if !isCall {
 		log.Fatal(
 			newMismatchContextError(
 				ctx.GetStart().GetLine(),
@@ -307,8 +307,8 @@ func (l *wdlv1_1Listener) ExitCall_alias(ctx *parser.Call_aliasContext) {
 }
 
 func (l *wdlv1_1Listener) ExitCall_after(ctx *parser.Call_afterContext) {
-	call, ok := l.currentNode.(*Call)
-	if !ok {
+	call, isCall := l.currentNode.(*Call)
+	if !isCall {
 		log.Fatal(
 			newMismatchContextError(
 				ctx.GetStart().GetLine(),
@@ -323,8 +323,8 @@ func (l *wdlv1_1Listener) ExitCall_after(ctx *parser.Call_afterContext) {
 }
 
 func (l *wdlv1_1Listener) ExitCall_input(ctx *parser.Call_inputContext) {
-	call, ok := l.currentNode.(*Call)
-	if !ok {
+	call, isCall := l.currentNode.(*Call)
+	if !isCall {
 		log.Fatal(
 			newMismatchContextError(
 				ctx.GetStart().GetLine(),
@@ -348,8 +348,8 @@ func (l *wdlv1_1Listener) ExitCall_input(ctx *parser.Call_inputContext) {
 }
 
 func (l *wdlv1_1Listener) ExitCall(ctx *parser.CallContext) {
-	call, currentOk := l.currentNode.(*Call)
-	if !currentOk {
+	call, currentIsCall := l.currentNode.(*Call)
+	if !currentIsCall {
 		log.Fatal(
 			newMismatchContextError(
 				ctx.GetStart().GetLine(),
@@ -360,8 +360,8 @@ func (l *wdlv1_1Listener) ExitCall(ctx *parser.CallContext) {
 			),
 		)
 	}
-	workflow, parentOK := l.currentNode.getParent().(*Workflow)
-	if !parentOK {
+	workflow, parentIsWorkflow := l.currentNode.getParent().(*Workflow)
+	if !parentIsWorkflow {
 		log.Fatal(
 			newMismatchContextError(
 				ctx.GetStart().GetLine(),
@@ -387,7 +387,7 @@ func (l *wdlv1_1Listener) EnterTask(ctx *parser.TaskContext) {
 }
 
 func (l *wdlv1_1Listener) EnterTask_command(ctx *parser.Task_commandContext) {
-	if task, ok := l.currentNode.(*Task); ok {
+	if task, isTask := l.currentNode.(*Task); isTask {
 		task.Command = append(
 			task.Command, ctx.Task_command_string_part().GetText(),
 		)
@@ -397,7 +397,7 @@ func (l *wdlv1_1Listener) EnterTask_command(ctx *parser.Task_commandContext) {
 func (l *wdlv1_1Listener) ExitTask_command_expr_with_string(
 	ctx *parser.Task_command_expr_with_stringContext,
 ) {
-	if task, ok := l.currentNode.(*Task); ok {
+	if task, isTask := l.currentNode.(*Task); isTask {
 		task.Command = append(
 			task.Command,
 			ctx.Task_command_expr_part().GetText(),
@@ -409,7 +409,7 @@ func (l *wdlv1_1Listener) ExitTask_command_expr_with_string(
 func (l *wdlv1_1Listener) ExitTask_runtime_kv(
 	ctx *parser.Task_runtime_kvContext,
 ) {
-	if t, ok := l.currentNode.(*Task); ok {
+	if t, isTask := l.currentNode.(*Task); isTask {
 		t.Runtime[ctx.Identifier().GetText()] = newKeyValue(
 			ctx.GetStart().GetStart(),
 			ctx.GetStop().GetStop(),
@@ -431,8 +431,8 @@ func (l *wdlv1_1Listener) ExitTask_runtime_kv(
 }
 
 func (l *wdlv1_1Listener) ExitTask(ctx *parser.TaskContext) {
-	task, ok := l.currentNode.(*Task)
-	if !ok {
+	task, isTask := l.currentNode.(*Task)
+	if !isTask {
 		log.Fatal(
 			newMismatchContextError(
 				ctx.GetStart().GetLine(),
