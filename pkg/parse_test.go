@@ -29,7 +29,7 @@ func TestImport(t *testing.T) {
 	import1.setKind(imp)
 	import2 := NewWDL("http://example.com/lib/analysis_tasks", 0)
 	import2.setKind(imp)
-	import2.setAlias("analysis")
+	import2.alias = "analysis"
 	import3 := NewWDL("https://example.com/lib/stdlib.wdl", 0)
 	import3.setKind(imp)
 	expectedImports := []*WDL{import1, import2, import3}
@@ -101,7 +101,7 @@ func TestWorkflowCall(t *testing.T) {
 	inputPath := "testdata/workflow_call.wdl"
 	result, err := Antlr4Parse(inputPath)
 	expectedFirstCall := NewCall(39, 150, "Greeting")
-	expectedFirstCall.setAlias("hello")
+	expectedFirstCall.alias = "hello"
 	expectedFirstCall.Inputs = []*keyValue{
 		newKeyValue(
 			91, 113, ipt, "first_name", "first_name",

@@ -23,6 +23,16 @@ func newWdlv1_1Listener(wdl *WDL) *wdlv1_1Listener {
 	return &wdlv1_1Listener{wdl: wdl, currentNode: wdl}
 }
 
+// This branching method add a new node as a child of current node
+// and set current node to the new node
+func (l *wdlv1_1Listener) branching(child node, checkout bool) {
+	child.setParent(l.currentNode)
+	l.currentNode.addChild(child)
+	if checkout {
+		l.currentNode = child
+	}
+}
+
 func (l *wdlv1_1Listener) ExitVersion(ctx *parser.VersionContext) {
 	l.wdl.Version = ctx.ReleaseVersion().GetText()
 }
@@ -35,7 +45,7 @@ func (l *wdlv1_1Listener) ExitImport_doc(ctx *parser.Import_docContext) {
 	for _, child := range ctx.GetChildren() {
 		switch childCtx := child.(type) {
 		case *parser.Import_asContext:
-			importedWdl.setAlias(childCtx.Identifier().GetText())
+			importedWdl.alias = childCtx.Identifier().GetText()
 		}
 	}
 	// Put the import node into AST
@@ -103,16 +113,17 @@ func (l *wdlv1_1Listener) EnterBound_decls(ctx *parser.Bound_declsContext) {
 	case *parser.Workflow_outputContext, *parser.Task_outputContext:
 		kind = opt
 	}
-	obj := newDecl(
-		ctx.GetStart().GetStart(),
-		ctx.GetStop().GetStop(),
-		kind,
-		ctx.Identifier().GetText(),
-		ctx.Wdl_type().GetText(),
-		ctx.Expr().GetText(),
+	l.branching(
+		newDecl(
+			ctx.GetStart().GetStart(),
+			ctx.GetStop().GetStop(),
+			kind,
+			ctx.Identifier().GetText(),
+			ctx.Wdl_type().GetText(),
+			ctx.Expr().GetText(),
+		),
+		true,
 	)
-	obj.setParent(l.currentNode)
-	l.currentNode = obj
 }
 
 func (l *wdlv1_1Listener) ExitBound_decls(ctx *parser.Bound_declsContext) {
@@ -205,15 +216,15 @@ func (l *wdlv1_1Listener) EnterMeta_kv(ctx *parser.Meta_kvContext) {
 	switch n := l.currentNode.(type) {
 	case *Workflow:
 		if kind == pmt {
-			n.ParameterMeta[obj.getName()] = obj
+			n.ParameterMeta[obj.key] = obj
 		} else {
-			n.Meta[obj.getName()] = obj
+			n.Meta[obj.key] = obj
 		}
 	case *Task:
 		if kind == pmt {
-			n.ParameterMeta[obj.getName()] = obj
+			n.ParameterMeta[obj.key] = obj
 		} else {
-			n.Meta[obj.getName()] = obj
+			n.Meta[obj.key] = obj
 		}
 	default:
 		log.Fatalf(
@@ -232,8 +243,7 @@ func (l *wdlv1_1Listener) EnterWorkflow(ctx *parser.WorkflowContext) {
 		ctx.GetStop().GetStop(),
 		ctx.Identifier().GetText(),
 	)
-	workflow.setParent(l.currentNode)
-	l.currentNode = workflow
+	l.branching(workflow, true)
 	for _, e := range ctx.AllWorkflow_element() {
 		workflow.Elements = append(workflow.Elements, e.GetText())
 	}
@@ -257,21 +267,21 @@ func (l *wdlv1_1Listener) ExitWorkflow(ctx *parser.WorkflowContext) {
 			"Found a \"%v\" workflow while a \"%v\" workflow already exists;"+
 				" a maximum of one workflow is allowed by grammar"+
 				" so this is likely a parsing error",
-			l.wdl.Workflow.getName(),
-			workflow.getName(),
+			l.wdl.Workflow.name, workflow.name,
 		)
 	}
 	l.wdl.Workflow = workflow
 	l.currentNode = l.wdl
 }
 func (l *wdlv1_1Listener) EnterCall(ctx *parser.CallContext) {
-	call := NewCall(
-		ctx.GetStart().GetStart(),
-		ctx.GetStop().GetStop(),
-		"",
+	l.branching(
+		NewCall(
+			ctx.GetStart().GetStart(),
+			ctx.GetStop().GetStop(),
+			"",
+		),
+		true,
 	)
-	call.setParent(l.currentNode)
-	l.currentNode = call
 }
 
 func (l *wdlv1_1Listener) ExitCall_name(ctx *parser.Call_nameContext) {
@@ -287,7 +297,7 @@ func (l *wdlv1_1Listener) ExitCall_name(ctx *parser.Call_nameContext) {
 			),
 		)
 	}
-	call.setName(ctx.GetText())
+	call.name = ctx.GetText()
 }
 
 func (l *wdlv1_1Listener) ExitCall_alias(ctx *parser.Call_aliasContext) {
@@ -303,7 +313,7 @@ func (l *wdlv1_1Listener) ExitCall_alias(ctx *parser.Call_aliasContext) {
 			),
 		)
 	}
-	call.setAlias(ctx.Identifier().GetText())
+	call.alias = ctx.Identifier().GetText()
 }
 
 func (l *wdlv1_1Listener) ExitCall_after(ctx *parser.Call_afterContext) {
@@ -377,13 +387,14 @@ func (l *wdlv1_1Listener) ExitCall(ctx *parser.CallContext) {
 }
 
 func (l *wdlv1_1Listener) EnterTask(ctx *parser.TaskContext) {
-	task := NewTask(
-		ctx.GetStart().GetStart(),
-		ctx.GetStop().GetStop(),
-		ctx.Identifier().GetText(),
+	l.branching(
+		NewTask(
+			ctx.GetStart().GetStart(),
+			ctx.GetStop().GetStop(),
+			ctx.Identifier().GetText(),
+		),
+		true,
 	)
-	task.setParent(l.currentNode)
-	l.currentNode = task
 }
 
 func (l *wdlv1_1Listener) EnterTask_command(ctx *parser.Task_commandContext) {

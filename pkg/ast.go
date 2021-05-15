@@ -38,77 +38,65 @@ type node interface {
 	addChild(node)
 }
 
-// An object represents a named language entity such as input, private
-// declaration, output, runtime metadata or parameter metadata.
-type object struct {
-	// For node interface
+// A vertex is a concrete type of the node interface.
+type vertex struct {
 	start, end int
 	kind       nodeKind
 	parent     node
 	children   []node
+}
 
-	// Specific for object
-	alias, name string
+func (v *vertex) getStart() int         { return v.start }
+func (v *vertex) getEnd() int           { return v.end }
+func (v *vertex) getKind() nodeKind     { return v.kind }
+func (v *vertex) setKind(kind nodeKind) { v.kind = kind }
+func (v *vertex) getParent() node       { return v.parent }
+func (v *vertex) setParent(parent node) { v.parent = parent }
+func (v *vertex) getChildren() []node   { return v.children }
+
+func (v *vertex) addChild(n node) {
+	newStart := n.getStart()
+	newEnd := n.getEnd()
+	for _, child := range v.children {
+		if (child.getStart() == newStart) && (child.getEnd() == newEnd) {
+			return
+		}
+	}
+	v.children = append(v.children, n)
+}
+
+// An object represents a named language entity such as input, private
+// declaration, output, runtime metadata or parameter metadata.
+type object struct {
+	vertex      // Implement node interface
+	name, alias string
 }
 
 func newObject(
 	start, end int, kind nodeKind, name string,
 ) *object {
-	o := new(object)
-	o.start = start
-	o.end = end
-	o.kind = kind
-	o.name = name
-	return o
+	return &object{vertex{start: start, end: end, kind: kind}, name, ""}
 }
-
-func (o *object) getStart() int         { return o.start }
-func (o *object) getEnd() int           { return o.end }
-func (o *object) getKind() nodeKind     { return o.kind }
-func (o *object) setKind(kind nodeKind) { o.kind = kind }
-
-func (o *object) getParent() node { return o.parent }
-
-func (o *object) setParent(parent node) {
-	o.parent = parent
-	parent.addChild(o)
-}
-
-func (o *object) getChildren() []node { return o.children }
-
-func (o *object) addChild(n node) {
-	newStart := n.getStart()
-	newEnd := n.getEnd()
-	for _, child := range o.children {
-		if (child.getStart() == newStart) && (child.getEnd() == newEnd) {
-			return
-		}
-	}
-	o.children = append(o.children, n)
-	// Note that this add child method will not set parent on node `n`
-}
-
-func (o *object) setAlias(a string) { o.alias = a }
-func (o *object) getName() string   { return o.name }
-func (o *object) setName(n string)  { o.name = n }
-
-type declType string
-
-type declValue string
 
 // An decl represents a declaration.
-type decl struct {
-	object
-	expr  *expr
-	typ   declType
-	value declValue
-}
+type (
+	declType  string
+	declValue string
+	decl      struct {
+		vertex
+		identifier string
+		expr       *expr
+		typ        declType
+		value      declValue
+	}
+)
 
 func newDecl(
-	start, end int, kind nodeKind, name, rawType, rawValue string,
+	start, end int, kind nodeKind, identifier, rawType, rawValue string,
 ) *decl {
 	d := new(decl)
-	d.object = *newObject(start, end, kind, name)
+	d.vertex = vertex{start: start, end: end, kind: kind}
+	d.identifier = identifier
 	d.typ = declType(rawType)
 	d.value = declValue(rawValue)
 	return d
@@ -117,17 +105,14 @@ func newDecl(
 // A keyValue represents a key/value pair defined in call input, runtime,
 // metadata or parameter metadata sections.
 type keyValue struct {
-	object
-	value string
+	vertex
+	key, value string
 }
 
 func newKeyValue(
 	start, end int, kind nodeKind, key, value string,
 ) *keyValue {
-	kv := new(keyValue)
-	kv.object = *newObject(start, end, kind, key)
-	kv.value = value
-	return kv
+	return &keyValue{vertex{start: start, end: end, kind: kind}, key, value}
 }
 
 // A WDL represents a parsed WDL document.

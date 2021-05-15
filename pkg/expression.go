@@ -17,23 +17,16 @@ func newLiteralEval(literal interface{}) evaluator {
 }
 
 type expr struct {
-	start, end int
-	kind       nodeKind
-	parent     node
-	children   []node
-
-	x *expr // left operand
-	y *expr // right operand
-
+	vertex
+	x     *expr // left operand
+	y     *expr // right operand
 	opSym string
 	eval  evaluator // evaluate this expression (such as adding [x] to [y])
 }
 
 func newExpr(start, end int, opSym string) *expr {
 	e := new(expr)
-	e.start = start
-	e.end = end
-	e.kind = exp
+	e.vertex = vertex{start: start, end: end, kind: exp}
 	e.opSym = opSym
 	e.eval = func() (interface{}, error) {
 		log.Fatalf(
@@ -43,32 +36,6 @@ func newExpr(start, end int, opSym string) *expr {
 		return nil, nil
 	}
 	return e
-}
-
-func (e *expr) getStart() int         { return e.start }
-func (e *expr) getEnd() int           { return e.end }
-func (e *expr) getKind() nodeKind     { return exp }
-func (e *expr) setKind(kind nodeKind) {}
-
-func (e *expr) getParent() node { return e.parent }
-
-func (e *expr) setParent(parent node) {
-	e.parent = parent
-	parent.addChild(e)
-}
-
-func (e *expr) getChildren() []node { return e.children }
-
-func (e *expr) addChild(n node) {
-	newStart := n.getStart()
-	newEnd := n.getEnd()
-	for _, child := range e.children {
-		if (child.getStart() == newStart) && (child.getEnd() == newEnd) {
-			return
-		}
-	}
-	e.children = append(e.children, n)
-	// Note that this add child method will not set parent on node `n`
 }
 
 func (e *expr) getChildExprs() []*expr {
@@ -112,8 +79,7 @@ func (l *wdlv1_1Listener) EnterLor(ctx *parser.LorContext) {
 		}
 		return xVal || yVal, nil
 	}
-	e.setParent(l.currentNode)
-	l.currentNode = e
+	l.branching(e, true)
 }
 
 func (l *wdlv1_1Listener) ExitLor(ctx *parser.LorContext) {
@@ -172,8 +138,7 @@ func (l *wdlv1_1Listener) EnterLand(ctx *parser.LandContext) {
 		}
 		return xVal && yVal, nil
 	}
-	e.setParent(l.currentNode)
-	l.currentNode = e
+	l.branching(e, true)
 }
 
 func (l *wdlv1_1Listener) ExitLand(ctx *parser.LandContext) {
@@ -216,7 +181,7 @@ func (l *wdlv1_1Listener) ExitPrimitive_literal(
 		b, err := strconv.ParseBool(boolToken.GetText())
 		if err == nil {
 			e.eval = newLiteralEval(b)
-			e.setParent(l.currentNode)
+			l.branching(e, false)
 		}
 	}
 }
