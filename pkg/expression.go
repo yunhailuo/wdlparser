@@ -64,17 +64,12 @@ func (l *wdlv1_1Listener) EnterLor(ctx *parser.LorContext) {
 			return nil, errY
 		}
 		xVal, xIsBool := x.(bool)
-		if !xIsBool {
-			return nil, fmt.Errorf(
-				"left operand, %v, of OR at %d:%d is not a valid bool",
-				x, e.getStart(), e.getEnd(),
-			)
-		}
 		yVal, yIsBool := y.(bool)
-		if !yIsBool {
+		if (!xIsBool) || (!yIsBool) {
 			return nil, fmt.Errorf(
-				"right operand, %v, of OR at %d:%d is not a valid bool",
-				y, e.getStart(), e.getEnd(),
+				"invalid operands for OR at %d:%d: found \"%T || %T\","+
+					" expect \"bool || bool\"",
+				e.getStart(), e.getEnd(), x, y,
 			)
 		}
 		return xVal || yVal, nil
@@ -123,17 +118,12 @@ func (l *wdlv1_1Listener) EnterLand(ctx *parser.LandContext) {
 			return nil, errY
 		}
 		xVal, xIsBool := x.(bool)
-		if !xIsBool {
-			return nil, fmt.Errorf(
-				"left operand, %v, of AND at %d:%d is not a valid bool",
-				x, e.getStart(), e.getEnd(),
-			)
-		}
 		yVal, yIsBool := y.(bool)
-		if !yIsBool {
+		if (!xIsBool) || (!yIsBool) {
 			return nil, fmt.Errorf(
-				"right operand, %v, of AND at %d:%d is not a valid bool",
-				y, e.getStart(), e.getEnd(),
+				"invalid operands for AND at %d:%d: found \"%T && %T\","+
+					" expect \"bool && bool\"",
+				e.getStart(), e.getEnd(), x, y,
 			)
 		}
 		return xVal && yVal, nil
@@ -184,4 +174,96 @@ func (l *wdlv1_1Listener) ExitPrimitive_literal(
 			l.branching(e, false)
 		}
 	}
+}
+
+func (l *wdlv1_1Listener) ExitNumber(ctx *parser.NumberContext) {
+	e := newExpr(
+		ctx.GetStart().GetStart(),
+		ctx.GetStop().GetStop(),
+		"",
+	)
+
+	// IntLiteral
+	intToken := ctx.IntLiteral()
+	if intToken != nil {
+		i, err := strconv.ParseInt(intToken.GetText(), 0, 64)
+		if err == nil {
+			e.eval = newLiteralEval(i)
+			l.branching(e, false)
+		}
+	}
+	// FloatLiteral
+	floatToken := ctx.FloatLiteral()
+	if floatToken != nil {
+		f, err := strconv.ParseFloat(floatToken.GetText(), 64)
+		if err == nil {
+			e.eval = newLiteralEval(f)
+			l.branching(e, false)
+		}
+	}
+}
+
+func (l *wdlv1_1Listener) EnterSub(ctx *parser.SubContext) {
+	e := newExpr(
+		ctx.GetStart().GetStart(),
+		ctx.GetStop().GetStop(),
+		ctx.MINUS().GetText(),
+	)
+	e.eval = func() (interface{}, error) {
+		x, errX := e.x.eval()
+		if errX != nil {
+			return nil, errX
+		}
+		y, errY := e.y.eval()
+		if errY != nil {
+			return nil, errY
+		}
+		xInt, xIsInt64 := x.(int64)
+		xFloat, xIsFloat64 := x.(float64)
+		yInt, yIsInt64 := y.(int64)
+		yFloat, yIsFloat64 := y.(float64)
+		if ((!xIsInt64) && (!xIsFloat64)) || ((!yIsInt64) && (!yIsFloat64)) {
+			return nil, fmt.Errorf(
+				"invalid operands for subtract at %d:%d: found \"%T - %T\","+
+					" expect \"int/float - int/float\"",
+				e.getStart(), e.getEnd(), x, y,
+			)
+		}
+		switch {
+		case xIsInt64 && yIsInt64:
+			return xInt - yInt, nil
+		case xIsInt64 && yIsFloat64:
+			return float64(xInt) - yFloat, nil
+		case xIsFloat64 && yIsInt64:
+			return xFloat - float64(yInt), nil
+		default: // xIsFloat64 && yIsFloat64:
+			return xFloat - yFloat, nil
+		}
+	}
+	l.branching(e, true)
+}
+
+func (l *wdlv1_1Listener) ExitSub(ctx *parser.SubContext) {
+	subExpr, isExpr := l.currentNode.(*expr)
+	if !isExpr {
+		log.Fatal(
+			newMismatchContextError(
+				ctx.GetStart().GetLine(),
+				ctx.GetStart().GetColumn(),
+				"substract",
+				"expression",
+				l.currentNode,
+			),
+		)
+	}
+	childExprs := subExpr.getChildExprs()
+	operandCount := len(childExprs)
+	if operandCount != 2 {
+		log.Fatalf(
+			"Substract expression expect 2 expressions as operand, found %v",
+			operandCount,
+		)
+	}
+	subExpr.x, subExpr.y = childExprs[0], childExprs[1]
+	l.currentNode = l.currentNode.getParent()
 }
