@@ -62,26 +62,19 @@ func newObject(
 	return o
 }
 
-func (o *object) getStart() int {
-	return o.start
-}
+func (o *object) getStart() int         { return o.start }
+func (o *object) getEnd() int           { return o.end }
+func (o *object) getKind() nodeKind     { return o.kind }
+func (o *object) setKind(kind nodeKind) { o.kind = kind }
 
-func (o *object) getEnd() int {
-	return o.end
-}
-
-func (o *object) getParent() node {
-	return o.parent
-}
+func (o *object) getParent() node { return o.parent }
 
 func (o *object) setParent(parent node) {
 	o.parent = parent
 	parent.addChild(o)
 }
 
-func (o *object) getChildren() []node {
-	return o.children
-}
+func (o *object) getChildren() []node { return o.children }
 
 func (o *object) addChild(n node) {
 	newStart := n.getStart()
@@ -95,25 +88,9 @@ func (o *object) addChild(n node) {
 	// Note that this add child method will not set parent on node `n`
 }
 
-func (o *object) getKind() nodeKind {
-	return o.kind
-}
-
-func (o *object) setKind(kind nodeKind) {
-	o.kind = kind
-}
-
-func (o *object) setAlias(a string) {
-	o.alias = a
-}
-
-func (o *object) getName() string {
-	return o.name
-}
-
-func (o *object) setName(n string) {
-	o.name = n
-}
+func (o *object) setAlias(a string) { o.alias = a }
+func (o *object) getName() string   { return o.name }
+func (o *object) setName(n string)  { o.name = n }
 
 type declType string
 

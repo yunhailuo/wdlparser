@@ -45,32 +45,19 @@ func newExpr(start, end int, opSym string) *expr {
 	return e
 }
 
-func (e *expr) getStart() int {
-	return e.start
-}
-
-func (e *expr) getEnd() int {
-	return e.end
-}
-
-func (e *expr) getKind() nodeKind {
-	return exp
-}
-
+func (e *expr) getStart() int         { return e.start }
+func (e *expr) getEnd() int           { return e.end }
+func (e *expr) getKind() nodeKind     { return exp }
 func (e *expr) setKind(kind nodeKind) {}
 
-func (e *expr) getParent() node {
-	return e.parent
-}
+func (e *expr) getParent() node { return e.parent }
 
 func (e *expr) setParent(parent node) {
 	e.parent = parent
 	parent.addChild(e)
 }
 
-func (e *expr) getChildren() []node {
-	return e.children
-}
+func (e *expr) getChildren() []node { return e.children }
 
 func (e *expr) addChild(n node) {
 	newStart := n.getStart()
