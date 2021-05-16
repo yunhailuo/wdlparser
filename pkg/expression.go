@@ -48,6 +48,26 @@ func (e *expr) getChildExprs() []*expr {
 	return exprs
 }
 
+func (l *wdlv1_1Listener) ExitPrimitive_literal(
+	ctx *parser.Primitive_literalContext,
+) {
+	e := newExpr(
+		ctx.GetStart().GetStart(),
+		ctx.GetStop().GetStop(),
+		"primitive literal",
+	)
+
+	// BoolLiteral of primitive_literal
+	boolToken := ctx.BoolLiteral()
+	if boolToken != nil {
+		b, err := strconv.ParseBool(boolToken.GetText())
+		if err == nil {
+			e.eval = newLiteralEval(b)
+			l.branching(e, false)
+		}
+	}
+}
+
 func (l *wdlv1_1Listener) EnterLor(ctx *parser.LorContext) {
 	e := newExpr(
 		ctx.GetStart().GetStart(),
@@ -156,24 +176,53 @@ func (l *wdlv1_1Listener) ExitLand(ctx *parser.LandContext) {
 	l.currentNode = l.currentNode.getParent()
 }
 
-func (l *wdlv1_1Listener) ExitPrimitive_literal(
-	ctx *parser.Primitive_literalContext,
-) {
+func (l *wdlv1_1Listener) EnterNegate(ctx *parser.NegateContext) {
 	e := newExpr(
 		ctx.GetStart().GetStart(),
 		ctx.GetStop().GetStop(),
-		"primitive literal",
+		ctx.NOT().GetText(),
 	)
-
-	// BoolLiteral of primitive_literal
-	boolToken := ctx.BoolLiteral()
-	if boolToken != nil {
-		b, err := strconv.ParseBool(boolToken.GetText())
-		if err == nil {
-			e.eval = newLiteralEval(b)
-			l.branching(e, false)
+	e.eval = func() (interface{}, error) {
+		y, errY := e.y.eval()
+		if errY != nil {
+			return nil, errY
 		}
+		yVal, yIsBool := y.(bool)
+		if !yIsBool {
+			return nil, fmt.Errorf(
+				"invalid operands for NOT at %d:%d: found \"!%T\","+
+					" expect \"!bool\"",
+				e.getStart(), e.getEnd(), y,
+			)
+		}
+		return !yVal, nil
 	}
+	l.branching(e, true)
+}
+
+func (l *wdlv1_1Listener) ExitNegate(ctx *parser.NegateContext) {
+	negateExpr, isExpr := l.currentNode.(*expr)
+	if !isExpr {
+		log.Fatal(
+			newMismatchContextError(
+				ctx.GetStart().GetLine(),
+				ctx.GetStart().GetColumn(),
+				"logical NOT",
+				"expression",
+				l.currentNode,
+			),
+		)
+	}
+	childExprs := negateExpr.getChildExprs()
+	operandCount := len(childExprs)
+	if operandCount != 1 {
+		log.Fatalf(
+			"Logical NOT expression expect 1 expression as operand, found %v",
+			operandCount,
+		)
+	}
+	negateExpr.y = childExprs[0]
+	l.currentNode = l.currentNode.getParent()
 }
 
 func (l *wdlv1_1Listener) ExitNumber(ctx *parser.NumberContext) {
@@ -201,6 +250,73 @@ func (l *wdlv1_1Listener) ExitNumber(ctx *parser.NumberContext) {
 			l.branching(e, false)
 		}
 	}
+}
+
+func (l *wdlv1_1Listener) EnterUnarysigned(ctx *parser.UnarysignedContext) {
+	var opSym string = "+"
+	if ctx.MINUS() != nil {
+		opSym = "-"
+	}
+	e := newExpr(
+		ctx.GetStart().GetStart(),
+		ctx.GetStop().GetStop(),
+		opSym,
+	)
+	e.eval = func() (interface{}, error) {
+		y, errY := e.y.eval()
+		if errY != nil {
+			return nil, errY
+		}
+		yInt, yIsInt64 := y.(int64)
+		yFloat, yIsFloat64 := y.(float64)
+		if (!yIsInt64) && (!yIsFloat64) {
+			return nil, fmt.Errorf(
+				"invalid operands for %v at %d:%d: found \"%v %T\","+
+					" expect \"%v int/float\"",
+				opSym, e.getStart(), e.getEnd(), opSym, y, opSym,
+			)
+		}
+		switch {
+		case yIsInt64:
+			if opSym == "+" {
+				return yInt, nil
+			}
+			// opSym == "-"
+			return -yInt, nil
+		default: // yIsFloat64:
+			if opSym == "+" {
+				return yFloat, nil
+			}
+			// opSym == "-"
+			return -yFloat, nil
+		}
+	}
+	l.branching(e, true)
+}
+
+func (l *wdlv1_1Listener) ExitUnarysigned(ctx *parser.UnarysignedContext) {
+	unaryExpr, isExpr := l.currentNode.(*expr)
+	if !isExpr {
+		log.Fatal(
+			newMismatchContextError(
+				ctx.GetStart().GetLine(),
+				ctx.GetStart().GetColumn(),
+				"logical AND",
+				"expression",
+				l.currentNode,
+			),
+		)
+	}
+	childExprs := unaryExpr.getChildExprs()
+	operandCount := len(childExprs)
+	if operandCount != 1 {
+		log.Fatalf(
+			"Unary +/- expression expect 1 expressions as operand, found %v",
+			operandCount,
+		)
+	}
+	unaryExpr.y = childExprs[0]
+	l.currentNode = l.currentNode.getParent()
 }
 
 func (l *wdlv1_1Listener) EnterSub(ctx *parser.SubContext) {

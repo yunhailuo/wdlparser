@@ -4,7 +4,7 @@ import (
 	"testing"
 )
 
-func TestBoolLiteralOrAnd(t *testing.T) {
+func TestBoolLiteralOrAndNot(t *testing.T) {
 	testCases := []struct {
 		wdl  string
 		want bool
@@ -17,6 +17,8 @@ func TestBoolLiteralOrAnd(t *testing.T) {
 		{"version 1.1 workflow L {input{Boolean t=true && false}}", false},
 		{"version 1.1 workflow L {input{Boolean t=false && true}}", false},
 		{"version 1.1 workflow L {input{Boolean t=false && false}}", false},
+		{"version 1.1 workflow L {input{Boolean t=!true}}", false},
+		{"version 1.1 workflow L {input{Boolean t=!false}}", true},
 	}
 	for _, tc := range testCases {
 		result, err := Antlr4Parse(tc.wdl)
@@ -40,6 +42,10 @@ func TestSubstract(t *testing.T) {
 		wdl  string
 		want interface{}
 	}{
+		{"version 1.1 workflow L {input{Int t=-2}}", int64(-2)},
+		{"version 1.1 workflow L {input{Int t=+2}}", int64(2)},
+		{"version 1.1 workflow L {input{Float t=-2.0}}", -2.0},
+		{"version 1.1 workflow L {input{Float t=+2.0}}", 2.0},
 		{"version 1.1 workflow L {input{Int t=3-1}}", int64(2)},
 		{"version 1.1 workflow L {input{Float t=5.0-4.0}}", 1.0},
 		{"version 1.1 workflow L {input{Float t=10-6.0}}", 4.0},
@@ -57,7 +63,7 @@ func TestSubstract(t *testing.T) {
 			t.Errorf("Fail to evaluate %v: %w", tc.wdl, evalErr)
 		}
 		if v != tc.want {
-			t.Errorf("Evaluate %v as %T, expect %T", tc.wdl, v, tc.want)
+			t.Errorf("Evaluate %v as %v, expect %v", tc.wdl, v, tc.want)
 		}
 	}
 }
