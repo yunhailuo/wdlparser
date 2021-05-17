@@ -3,6 +3,7 @@ package wdlparser
 import (
 	"fmt"
 	"log"
+	"math"
 	"strconv"
 
 	parser "github.com/yunhailuo/wdlparser/pkg/wdlv1_1"
@@ -319,6 +320,201 @@ func (l *wdlv1_1Listener) ExitUnarysigned(ctx *parser.UnarysignedContext) {
 	l.currentNode = l.currentNode.getParent()
 }
 
+func (l *wdlv1_1Listener) EnterMul(ctx *parser.MulContext) {
+	e := newExpr(
+		ctx.GetStart().GetStart(),
+		ctx.GetStop().GetStop(),
+		ctx.STAR().GetText(),
+	)
+	e.eval = func() (interface{}, error) {
+		x, errX := e.x.eval()
+		if errX != nil {
+			return nil, errX
+		}
+		y, errY := e.y.eval()
+		if errY != nil {
+			return nil, errY
+		}
+		xInt, xIsInt64 := x.(int64)
+		xFloat, xIsFloat64 := x.(float64)
+		yInt, yIsInt64 := y.(int64)
+		yFloat, yIsFloat64 := y.(float64)
+		if ((!xIsInt64) && (!xIsFloat64)) || ((!yIsInt64) && (!yIsFloat64)) {
+			return nil, fmt.Errorf(
+				"invalid operands for multiply at %d:%d: found \"%T * %T\","+
+					" expect \"int/float * int/float\"",
+				e.getStart(), e.getEnd(), x, y,
+			)
+		}
+		switch {
+		case xIsInt64 && yIsInt64:
+			return xInt * yInt, nil
+		case xIsInt64 && yIsFloat64:
+			return float64(xInt) * yFloat, nil
+		case xIsFloat64 && yIsInt64:
+			return xFloat * float64(yInt), nil
+		default: // xIsFloat64 && yIsFloat64:
+			return xFloat * yFloat, nil
+		}
+	}
+	l.branching(e, true)
+}
+
+func (l *wdlv1_1Listener) ExitMul(ctx *parser.MulContext) {
+	mulExpr, isExpr := l.currentNode.(*expr)
+	if !isExpr {
+		log.Fatal(
+			newMismatchContextError(
+				ctx.GetStart().GetLine(),
+				ctx.GetStart().GetColumn(),
+				"multiply",
+				"expression",
+				l.currentNode,
+			),
+		)
+	}
+	childExprs := mulExpr.getChildExprs()
+	operandCount := len(childExprs)
+	if operandCount != 2 {
+		log.Fatalf(
+			"Multiply expression expect 2 expressions as operand, found %v",
+			operandCount,
+		)
+	}
+	mulExpr.x, mulExpr.y = childExprs[0], childExprs[1]
+	l.currentNode = l.currentNode.getParent()
+}
+
+func (l *wdlv1_1Listener) EnterDivide(ctx *parser.DivideContext) {
+	e := newExpr(
+		ctx.GetStart().GetStart(),
+		ctx.GetStop().GetStop(),
+		ctx.DIVIDE().GetText(),
+	)
+	e.eval = func() (interface{}, error) {
+		x, errX := e.x.eval()
+		if errX != nil {
+			return nil, errX
+		}
+		y, errY := e.y.eval()
+		if errY != nil {
+			return nil, errY
+		}
+		xInt, xIsInt64 := x.(int64)
+		xFloat, xIsFloat64 := x.(float64)
+		yInt, yIsInt64 := y.(int64)
+		yFloat, yIsFloat64 := y.(float64)
+		if ((!xIsInt64) && (!xIsFloat64)) || ((!yIsInt64) && (!yIsFloat64)) {
+			return nil, fmt.Errorf(
+				"invalid operands for divide at %d:%d: found \"%T / %T\","+
+					" expect \"int/float / int/float\"",
+				e.getStart(), e.getEnd(), x, y,
+			)
+		}
+		switch {
+		case xIsInt64 && yIsInt64:
+			return xInt / yInt, nil
+		case xIsInt64 && yIsFloat64:
+			return float64(xInt) / yFloat, nil
+		case xIsFloat64 && yIsInt64:
+			return xFloat / float64(yInt), nil
+		default: // xIsFloat64 && yIsFloat64:
+			return xFloat / yFloat, nil
+		}
+	}
+	l.branching(e, true)
+}
+
+func (l *wdlv1_1Listener) ExitDivide(ctx *parser.DivideContext) {
+	divideExpr, isExpr := l.currentNode.(*expr)
+	if !isExpr {
+		log.Fatal(
+			newMismatchContextError(
+				ctx.GetStart().GetLine(),
+				ctx.GetStart().GetColumn(),
+				"divide",
+				"expression",
+				l.currentNode,
+			),
+		)
+	}
+	childExprs := divideExpr.getChildExprs()
+	operandCount := len(childExprs)
+	if operandCount != 2 {
+		log.Fatalf(
+			"Divide expression expect 2 expressions as operand, found %v",
+			operandCount,
+		)
+	}
+	divideExpr.x, divideExpr.y = childExprs[0], childExprs[1]
+	l.currentNode = l.currentNode.getParent()
+}
+
+func (l *wdlv1_1Listener) EnterMod(ctx *parser.ModContext) {
+	e := newExpr(
+		ctx.GetStart().GetStart(),
+		ctx.GetStop().GetStop(),
+		ctx.MOD().GetText(),
+	)
+	e.eval = func() (interface{}, error) {
+		x, errX := e.x.eval()
+		if errX != nil {
+			return nil, errX
+		}
+		y, errY := e.y.eval()
+		if errY != nil {
+			return nil, errY
+		}
+		xInt, xIsInt64 := x.(int64)
+		xFloat, xIsFloat64 := x.(float64)
+		yInt, yIsInt64 := y.(int64)
+		yFloat, yIsFloat64 := y.(float64)
+		if ((!xIsInt64) && (!xIsFloat64)) || ((!yIsInt64) && (!yIsFloat64)) {
+			return nil, fmt.Errorf(
+				"invalid operands for modulo at %d:%d: found \"%T / %T\","+
+					" expect \"int/float / int/float\"",
+				e.getStart(), e.getEnd(), x, y,
+			)
+		}
+		switch {
+		case xIsInt64 && yIsInt64:
+			return xInt % yInt, nil
+		case xIsInt64 && yIsFloat64:
+			return math.Mod(float64(xInt), yFloat), nil
+		case xIsFloat64 && yIsInt64:
+			return math.Mod(xFloat, float64(yInt)), nil
+		default: // xIsFloat64 && yIsFloat64:
+			return math.Mod(xFloat, yFloat), nil
+		}
+	}
+	l.branching(e, true)
+}
+
+func (l *wdlv1_1Listener) ExitMod(ctx *parser.ModContext) {
+	modExpr, isExpr := l.currentNode.(*expr)
+	if !isExpr {
+		log.Fatal(
+			newMismatchContextError(
+				ctx.GetStart().GetLine(),
+				ctx.GetStart().GetColumn(),
+				"modulo",
+				"expression",
+				l.currentNode,
+			),
+		)
+	}
+	childExprs := modExpr.getChildExprs()
+	operandCount := len(childExprs)
+	if operandCount != 2 {
+		log.Fatalf(
+			"Modulo expression expect 2 expressions as operand, found %v",
+			operandCount,
+		)
+	}
+	modExpr.x, modExpr.y = childExprs[0], childExprs[1]
+	l.currentNode = l.currentNode.getParent()
+}
+
 func (l *wdlv1_1Listener) EnterSub(ctx *parser.SubContext) {
 	e := newExpr(
 		ctx.GetStart().GetStart(),
@@ -381,5 +577,50 @@ func (l *wdlv1_1Listener) ExitSub(ctx *parser.SubContext) {
 		)
 	}
 	subExpr.x, subExpr.y = childExprs[0], childExprs[1]
+	l.currentNode = l.currentNode.getParent()
+}
+
+func (l *wdlv1_1Listener) EnterExpression_group(
+	ctx *parser.Expression_groupContext,
+) {
+	e := newExpr(
+		ctx.GetStart().GetStart(),
+		ctx.GetStop().GetStop(),
+		"()",
+	)
+	e.eval = func() (interface{}, error) {
+		x, errX := e.x.eval()
+		if errX != nil {
+			return nil, errX
+		}
+		return x, nil
+	}
+	l.branching(e, true)
+}
+
+func (l *wdlv1_1Listener) ExitExpression_group(
+	ctx *parser.Expression_groupContext,
+) {
+	groupExpr, isExpr := l.currentNode.(*expr)
+	if !isExpr {
+		log.Fatal(
+			newMismatchContextError(
+				ctx.GetStart().GetLine(),
+				ctx.GetStart().GetColumn(),
+				"expression group",
+				"expression",
+				l.currentNode,
+			),
+		)
+	}
+	childExprs := groupExpr.getChildExprs()
+	operandCount := len(childExprs)
+	if operandCount != 1 {
+		log.Fatalf(
+			"Expression group expect 1 expression as operand, found %v",
+			operandCount,
+		)
+	}
+	groupExpr.x = childExprs[0]
 	l.currentNode = l.currentNode.getParent()
 }

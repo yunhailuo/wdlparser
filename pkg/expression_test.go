@@ -37,7 +37,7 @@ func TestBoolLiteralOrAndNot(t *testing.T) {
 	}
 }
 
-func TestSubstract(t *testing.T) {
+func TestArithmetic(t *testing.T) {
 	testCases := []struct {
 		wdl  string
 		want interface{}
@@ -46,10 +46,30 @@ func TestSubstract(t *testing.T) {
 		{"version 1.1 workflow L {input{Int t=+2}}", int64(2)},
 		{"version 1.1 workflow L {input{Float t=-2.0}}", -2.0},
 		{"version 1.1 workflow L {input{Float t=+2.0}}", 2.0},
+
+		// Substraction
 		{"version 1.1 workflow L {input{Int t=3-1}}", int64(2)},
 		{"version 1.1 workflow L {input{Float t=5.0-4.0}}", 1.0},
 		{"version 1.1 workflow L {input{Float t=10-6.0}}", 4.0},
 		{"version 1.1 workflow L {input{Float t=0.0-2}}", -2.0},
+
+		// Multiplication
+		{"version 1.1 workflow L {input{Int t=2*3}}", int64(6)},
+		{"version 1.1 workflow L {input{Float t=5.0*4.0}}", 20.0},
+		{"version 1.1 workflow L {input{Float t=7*6.0}}", 42.0},
+		{"version 1.1 workflow L {input{Float t=8.0*9}}", 72.0},
+
+		// Division
+		{"version 1.1 workflow L {input{Int t=4/2}}", int64(2)},
+		{"version 1.1 workflow L {input{Float t=6.0/3.0}}", 2.0},
+		{"version 1.1 workflow L {input{Float t=8/2.0}}", 4.0},
+		{"version 1.1 workflow L {input{Float t=2.0/10}}", 0.2},
+
+		// Modulo
+		{"version 1.1 workflow L {input{Int t=3%2}}", int64(1)},
+		{"version 1.1 workflow L {input{Float t=5.2%3.0}}", 2.2},
+		{"version 1.1 workflow L {input{Float t=10%6.3}}", 3.7},
+		{"version 1.1 workflow L {input{Float t=0.0%2}}", 0.0},
 	}
 	for _, tc := range testCases {
 		result, err := Antlr4Parse(tc.wdl)
