@@ -37,6 +37,48 @@ func TestBoolLiteralOrAndNot(t *testing.T) {
 	}
 }
 
+func TestComparison(t *testing.T) {
+	testCases := []struct {
+		wdl  string
+		want bool
+	}{
+		// Less than, less than or equal to
+		{"version 1.1 workflow L {input{Boolean t=1<2}}", true},
+		{"version 1.1 workflow L {input{Boolean t=1.0<=2.0}}", true},
+		{"version 1.1 workflow L {input{Boolean t=3.0<3}}", false},
+		{"version 1.1 workflow L {input{Boolean t=3<=3.0}}", true},
+		{"version 1.1 workflow L {input{Boolean t=5.0<4}}", false},
+		{"version 1.1 workflow L {input{Boolean t=5<=4}}", false},
+		{"version 1.1 workflow L {input{Boolean t=6.0<10.0}}", true},
+		{"version 1.1 workflow L {input{Boolean t=6.0<=10}}", true},
+
+		// Greater than, greater than or equal to
+		{"version 1.1 workflow L {input{Boolean t=1>2}}", false},
+		{"version 1.1 workflow L {input{Boolean t=1.0>=2.0}}", false},
+		{"version 1.1 workflow L {input{Boolean t=3.0>3}}", false},
+		{"version 1.1 workflow L {input{Boolean t=3>=3.0}}", true},
+		{"version 1.1 workflow L {input{Boolean t=5.0>4}}", true},
+		{"version 1.1 workflow L {input{Boolean t=5>=4}}", true},
+		{"version 1.1 workflow L {input{Boolean t=6.0>10.0}}", false},
+		{"version 1.1 workflow L {input{Boolean t=6.0>=10}}", false},
+	}
+	for _, tc := range testCases {
+		result, err := Antlr4Parse(tc.wdl)
+		if err != nil {
+			t.Errorf(
+				"Found %d errors in %q, expect no errors", len(err), tc.wdl,
+			)
+		}
+		v, evalErr := result.Workflow.Inputs[0].expr.eval()
+		if evalErr != nil {
+			t.Errorf("Fail to evaluate %v: %w", tc.wdl, evalErr)
+		}
+		if v.value != tc.want {
+			t.Errorf("Evaluate %v as %v, expect %v", tc.wdl, v, tc.want)
+		}
+	}
+}
+
 func TestArithmetic(t *testing.T) {
 	testCases := []struct {
 		wdl  string

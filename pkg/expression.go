@@ -15,6 +15,7 @@ const (
 	wdlBoolean wdlType = iota
 	wdlInt
 	wdlFloat
+	wdlString
 	wdlAny
 )
 
@@ -451,6 +452,333 @@ func (l *wdlv1_1Listener) ExitUnarysigned(ctx *parser.UnarysignedContext) {
 		)
 	}
 	unaryExpr.y = childExprs[0]
+	l.currentNode = l.currentNode.getParent()
+}
+
+func wdlLt(operands ...wdlValue) (wdlValue, error) {
+	operandCount := len(operands)
+	if operandCount != 2 {
+		return wdlNone(), fmt.Errorf(
+			"found %d operands, expect 2 for less than comparison",
+			operandCount,
+		)
+	}
+	x, y := operands[0], operands[1]
+	switch {
+	case x.typ == wdlInt && y.typ == wdlInt:
+		return newWdlBoolean((x.value.(int64)) < (y.value.(int64)), false, nil)
+	case x.typ == wdlFloat && y.typ == wdlInt:
+		return newWdlBoolean(
+			(x.value.(float64)) < float64(y.value.(int64)), false, nil,
+		)
+	case x.typ == wdlInt && y.typ == wdlFloat:
+		return newWdlBoolean(
+			float64(x.value.(int64)) < (y.value.(float64)), false, nil,
+		)
+	case x.typ == wdlFloat && y.typ == wdlFloat:
+		return newWdlBoolean(
+			(x.value.(float64)) < (y.value.(float64)), false, nil,
+		)
+	case x.typ == wdlString && y.typ == wdlString:
+		return newWdlBoolean(
+			(x.value.(string)) < (y.value.(string)), false, nil,
+		)
+	default: // neither operands is int, float or string
+		return wdlNone(), fmt.Errorf(
+			"invalid operands: less than comparison is only valid for" +
+				" int, float or string",
+		)
+	}
+}
+
+func (l *wdlv1_1Listener) EnterLt(ctx *parser.LtContext) {
+	e := newExpr(
+		ctx.GetStart().GetStart(),
+		ctx.GetStop().GetStop(),
+		ctx.LT().GetText(),
+	)
+	e.eval = func() (wdlValue, error) {
+		x, errX := e.x.eval()
+		if errX != nil {
+			return wdlNone(), errX
+		}
+		y, errY := e.y.eval()
+		if errY != nil {
+			return wdlNone(), errY
+		}
+		return wdlLt(x, y)
+	}
+	l.branching(e, true)
+}
+
+func (l *wdlv1_1Listener) ExitLt(ctx *parser.LtContext) {
+	ltExpr, isExpr := l.currentNode.(*expr)
+	if !isExpr {
+		log.Fatal(
+			newMismatchContextError(
+				ctx.GetStart().GetLine(),
+				ctx.GetStart().GetColumn(),
+				"less than comparison",
+				"expression",
+				l.currentNode,
+			),
+		)
+	}
+	childExprs := ltExpr.getChildExprs()
+	operandCount := len(childExprs)
+	if operandCount != 2 {
+		log.Fatalf(
+			"Less than comparison expect 2 expressions as operand, found %v",
+			operandCount,
+		)
+	}
+	ltExpr.x, ltExpr.y = childExprs[0], childExprs[1]
+	l.currentNode = l.currentNode.getParent()
+}
+
+func wdlLe(operands ...wdlValue) (wdlValue, error) {
+	operandCount := len(operands)
+	if operandCount != 2 {
+		return wdlNone(), fmt.Errorf(
+			"found %d operands, expect 2 for less than or equal to comparison",
+			operandCount,
+		)
+	}
+	x, y := operands[0], operands[1]
+	switch {
+	case x.typ == wdlInt && y.typ == wdlInt:
+		return newWdlBoolean((x.value.(int64)) <= (y.value.(int64)), false, nil)
+	case x.typ == wdlFloat && y.typ == wdlInt:
+		return newWdlBoolean(
+			(x.value.(float64)) <= float64(y.value.(int64)), false, nil,
+		)
+	case x.typ == wdlInt && y.typ == wdlFloat:
+		return newWdlBoolean(
+			float64(x.value.(int64)) <= (y.value.(float64)), false, nil,
+		)
+	case x.typ == wdlFloat && y.typ == wdlFloat:
+		return newWdlBoolean(
+			(x.value.(float64)) <= (y.value.(float64)), false, nil,
+		)
+	case x.typ == wdlString && y.typ == wdlString:
+		return newWdlBoolean(
+			(x.value.(string)) <= (y.value.(string)), false, nil,
+		)
+	default: // neither operands is int, float or string
+		return wdlNone(), fmt.Errorf(
+			"invalid operands: less than or equal to comparison is only valid" +
+				" for int, float or string",
+		)
+	}
+}
+
+func (l *wdlv1_1Listener) EnterLte(ctx *parser.LteContext) {
+	e := newExpr(
+		ctx.GetStart().GetStart(),
+		ctx.GetStop().GetStop(),
+		ctx.LTE().GetText(),
+	)
+	e.eval = func() (wdlValue, error) {
+		x, errX := e.x.eval()
+		if errX != nil {
+			return wdlNone(), errX
+		}
+		y, errY := e.y.eval()
+		if errY != nil {
+			return wdlNone(), errY
+		}
+		return wdlLe(x, y)
+	}
+	l.branching(e, true)
+}
+
+func (l *wdlv1_1Listener) ExitLte(ctx *parser.LteContext) {
+	lteExpr, isExpr := l.currentNode.(*expr)
+	if !isExpr {
+		log.Fatal(
+			newMismatchContextError(
+				ctx.GetStart().GetLine(),
+				ctx.GetStart().GetColumn(),
+				"less than or equal to comparison",
+				"expression",
+				l.currentNode,
+			),
+		)
+	}
+	childExprs := lteExpr.getChildExprs()
+	operandCount := len(childExprs)
+	if operandCount != 2 {
+		log.Fatalf(
+			"Less than or equal to comparison expect 2 expressions as operand,"+
+				" found %v",
+			operandCount,
+		)
+	}
+	lteExpr.x, lteExpr.y = childExprs[0], childExprs[1]
+	l.currentNode = l.currentNode.getParent()
+}
+
+func wdlGe(operands ...wdlValue) (wdlValue, error) {
+	operandCount := len(operands)
+	if operandCount != 2 {
+		return wdlNone(), fmt.Errorf(
+			"found %d operands, expect 2 for greater than or equal to"+
+				" comparison",
+			operandCount,
+		)
+	}
+	x, y := operands[0], operands[1]
+	switch {
+	case x.typ == wdlInt && y.typ == wdlInt:
+		return newWdlBoolean((x.value.(int64)) >= (y.value.(int64)), false, nil)
+	case x.typ == wdlFloat && y.typ == wdlInt:
+		return newWdlBoolean(
+			(x.value.(float64)) >= float64(y.value.(int64)), false, nil,
+		)
+	case x.typ == wdlInt && y.typ == wdlFloat:
+		return newWdlBoolean(
+			float64(x.value.(int64)) >= (y.value.(float64)), false, nil,
+		)
+	case x.typ == wdlFloat && y.typ == wdlFloat:
+		return newWdlBoolean(
+			(x.value.(float64)) >= (y.value.(float64)), false, nil,
+		)
+	case x.typ == wdlString && y.typ == wdlString:
+		return newWdlBoolean(
+			(x.value.(string)) >= (y.value.(string)), false, nil,
+		)
+	default: // neither operands is int, float or string
+		return wdlNone(), fmt.Errorf(
+			"invalid operands: greater than or equal to comparison is" +
+				" only valid for int, float or string",
+		)
+	}
+}
+
+func (l *wdlv1_1Listener) EnterGte(ctx *parser.GteContext) {
+	e := newExpr(
+		ctx.GetStart().GetStart(),
+		ctx.GetStop().GetStop(),
+		ctx.GTE().GetText(),
+	)
+	e.eval = func() (wdlValue, error) {
+		x, errX := e.x.eval()
+		if errX != nil {
+			return wdlNone(), errX
+		}
+		y, errY := e.y.eval()
+		if errY != nil {
+			return wdlNone(), errY
+		}
+		return wdlGe(x, y)
+	}
+	l.branching(e, true)
+}
+
+func (l *wdlv1_1Listener) ExitGte(ctx *parser.GteContext) {
+	gteExpr, isExpr := l.currentNode.(*expr)
+	if !isExpr {
+		log.Fatal(
+			newMismatchContextError(
+				ctx.GetStart().GetLine(),
+				ctx.GetStart().GetColumn(),
+				"greater than or equal to comparison",
+				"expression",
+				l.currentNode,
+			),
+		)
+	}
+	childExprs := gteExpr.getChildExprs()
+	operandCount := len(childExprs)
+	if operandCount != 2 {
+		log.Fatalf(
+			"Greater than or equal to comparison expect 2 expressions"+
+				" as operand, found %v",
+			operandCount,
+		)
+	}
+	gteExpr.x, gteExpr.y = childExprs[0], childExprs[1]
+	l.currentNode = l.currentNode.getParent()
+}
+
+func wdlGt(operands ...wdlValue) (wdlValue, error) {
+	operandCount := len(operands)
+	if operandCount != 2 {
+		return wdlNone(), fmt.Errorf(
+			"found %d operands, expect 2 for greater than comparison",
+			operandCount,
+		)
+	}
+	x, y := operands[0], operands[1]
+	switch {
+	case x.typ == wdlInt && y.typ == wdlInt:
+		return newWdlBoolean((x.value.(int64)) > (y.value.(int64)), false, nil)
+	case x.typ == wdlFloat && y.typ == wdlInt:
+		return newWdlBoolean(
+			(x.value.(float64)) > float64(y.value.(int64)), false, nil,
+		)
+	case x.typ == wdlInt && y.typ == wdlFloat:
+		return newWdlBoolean(
+			float64(x.value.(int64)) > (y.value.(float64)), false, nil,
+		)
+	case x.typ == wdlFloat && y.typ == wdlFloat:
+		return newWdlBoolean(
+			(x.value.(float64)) > (y.value.(float64)), false, nil,
+		)
+	case x.typ == wdlString && y.typ == wdlString:
+		return newWdlBoolean(
+			(x.value.(string)) > (y.value.(string)), false, nil,
+		)
+	default: // neither operands is int, float or string
+		return wdlNone(), fmt.Errorf(
+			"invalid operands: greater than comparison is only valid" +
+				" for int, float or string",
+		)
+	}
+}
+
+func (l *wdlv1_1Listener) EnterGt(ctx *parser.GtContext) {
+	e := newExpr(
+		ctx.GetStart().GetStart(),
+		ctx.GetStop().GetStop(),
+		ctx.GT().GetText(),
+	)
+	e.eval = func() (wdlValue, error) {
+		x, errX := e.x.eval()
+		if errX != nil {
+			return wdlNone(), errX
+		}
+		y, errY := e.y.eval()
+		if errY != nil {
+			return wdlNone(), errY
+		}
+		return wdlGt(x, y)
+	}
+	l.branching(e, true)
+}
+
+func (l *wdlv1_1Listener) ExitGt(ctx *parser.GtContext) {
+	gtExpr, isExpr := l.currentNode.(*expr)
+	if !isExpr {
+		log.Fatal(
+			newMismatchContextError(
+				ctx.GetStart().GetLine(),
+				ctx.GetStart().GetColumn(),
+				"greater than",
+				"expression",
+				l.currentNode,
+			),
+		)
+	}
+	childExprs := gtExpr.getChildExprs()
+	operandCount := len(childExprs)
+	if operandCount != 2 {
+		log.Fatalf(
+			"Greater than comparison expect 2 expressions as operand, found %v",
+			operandCount,
+		)
+	}
+	gtExpr.x, gtExpr.y = childExprs[0], childExprs[1]
 	l.currentNode = l.currentNode.getParent()
 }
 
