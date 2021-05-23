@@ -31,7 +31,7 @@ func TestBoolLiteralOrAndNot(t *testing.T) {
 		if evalErr != nil {
 			t.Errorf("Fail to evaluate %v: %w", tc.wdl, evalErr)
 		}
-		if v != tc.want {
+		if v.value != tc.want {
 			t.Errorf("Evaluate %v as %v, expect %t", tc.wdl, v, tc.want)
 		}
 	}
@@ -82,7 +82,7 @@ func TestArithmetic(t *testing.T) {
 		if evalErr != nil {
 			t.Errorf("Fail to evaluate %v: %w", tc.wdl, evalErr)
 		}
-		if v != tc.want {
+		if v.value != tc.want {
 			t.Errorf("Evaluate %v as %v, expect %v", tc.wdl, v, tc.want)
 		}
 	}
