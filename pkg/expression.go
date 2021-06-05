@@ -9,103 +9,59 @@ import (
 	parser "github.com/yunhailuo/wdlparser/pkg/wdlv1_1"
 )
 
-type wdlType int
-
-const (
-	wdlBoolean wdlType = iota
-	wdlInt
-	wdlFloat
-	wdlString
-	wdlAny
-)
-
-type wdlValue struct {
-	value    interface{} // actually go value
-	typ      wdlType
-	optional bool
-	nonEmpty bool  // array only
-	err      error // error message if the actual value is not available or invalid
+type Type interface {
+	typeString() string
 }
 
-func newWdlBoolean(v interface{}, optional bool, e error) (wdlValue, error) {
-	if e == nil && v != nil {
-		if _, isBool := v.(bool); !isBool {
-			e = fmt.Errorf("input value \"%v\" is not a bool", v)
-		}
+type primitive string
+
+func (p primitive) typeString() string { return string(p) }
+
+const Boolean = primitive("Boolean")
+const Int = primitive("Int")
+const Float = primitive("Float")
+const String = primitive("String")
+const Any = primitive("Any")
+
+type value struct {
+	typ      Type
+	govalue  interface{} // actual underlying go value
+	nullable bool
+	nonEmpty bool // array only
+}
+
+func makeNone() value {
+	return value{Any, nil, false, false}
+}
+
+func primitiveFromLiteral(lit string, typ Type) (value, error) {
+	v := new(value)
+	v.typ = typ
+	var e error = nil
+	pT, isPrimitive := typ.(primitive)
+	if !isPrimitive {
+		e = fmt.Errorf("only support primitive type, got typ: %T", typ)
+		return makeNone(), e
 	}
-	return wdlValue{v, wdlBoolean, false, false, e}, e
-}
-
-func newWdlInt(v interface{}, optional bool, e error) (wdlValue, error) {
-	if e == nil && v != nil {
-		switch i := v.(type) {
-		case int:
-			v = int64(i)
-		case int8:
-			v = int64(i)
-		case int16:
-			v = int64(i)
-		case int32:
-			v = int64(i)
-		case int64:
-			v = i
-		case uint:
-			v = int64(i)
-		case uint8:
-			v = int64(i)
-		case uint16:
-			v = int64(i)
-		case uint32:
-			v = int64(i)
-		default:
-			e = fmt.Errorf(
-				"input value \"%v\" is not a go integer"+
-					" or potentially too big for int64", v,
-			)
-		}
+	switch pT {
+	case Boolean:
+		v.govalue, e = strconv.ParseBool(lit)
+	case Int:
+		v.govalue, e = strconv.ParseInt(lit, 10, 64)
+	case Float:
+		v.govalue, e = strconv.ParseFloat(lit, 64)
+	case String:
+		v.govalue = lit
+	case Any:
+		v.govalue = nil
+	default:
+		v.govalue = nil
+		e = fmt.Errorf("unsupported %T primitive: %v", pT, pT)
 	}
-	return wdlValue{v, wdlInt, false, false, e}, e
+	return *v, e
 }
 
-func newWdlFloat(v interface{}, optional bool, e error) (wdlValue, error) {
-	if e == nil && v != nil {
-		switch i := v.(type) {
-		case int:
-			v = float64(i)
-		case int8:
-			v = float64(i)
-		case int16:
-			v = float64(i)
-		case int32:
-			v = float64(i)
-		case int64:
-			v = float64(i)
-		case uint:
-			v = float64(i)
-		case uint8:
-			v = float64(i)
-		case uint16:
-			v = float64(i)
-		case uint32:
-			v = float64(i)
-		case uint64:
-			v = float64(i)
-		case float32:
-			v = float64(i)
-		case float64:
-			v = i
-		default:
-			e = fmt.Errorf("input value \"%v\" is not a go integer or float", v)
-		}
-	}
-	return wdlValue{v, wdlFloat, false, false, e}, e
-}
-
-func wdlNone() wdlValue {
-	return wdlValue{nil, wdlAny, false, false, nil}
-}
-
-type evaluator func() (wdlValue, error)
+type evaluator func() (value, error)
 
 type expr struct {
 	vertex
@@ -119,12 +75,12 @@ func newExpr(start, end int, opSym string) *expr {
 	e := new(expr)
 	e.vertex = vertex{start: start, end: end, kind: exp}
 	e.opSym = opSym
-	e.eval = func() (wdlValue, error) {
+	e.eval = func() (value, error) {
 		log.Fatalf(
 			"\"eval\" function undefined for expression \"%v\" at %d:%d",
 			opSym, start, end,
 		)
-		return wdlNone(), nil
+		return makeNone(), nil
 	}
 	return e
 }
@@ -151,13 +107,10 @@ func (l *wdlv1_1Listener) ExitPrimitive_literal(
 	// BoolLiteral of primitive_literal
 	boolToken := ctx.BoolLiteral()
 	if boolToken != nil {
-		b, err := strconv.ParseBool(boolToken.GetText())
-		if err == nil {
-			e.eval = func() (wdlValue, error) {
-				return newWdlBoolean(b, false, nil)
-			}
-			l.branching(e, false)
+		e.eval = func() (value, error) {
+			return primitiveFromLiteral(boolToken.GetText(), Boolean)
 		}
+		l.branching(e, false)
 	}
 }
 
@@ -171,51 +124,47 @@ func (l *wdlv1_1Listener) ExitNumber(ctx *parser.NumberContext) {
 	// IntLiteral
 	intToken := ctx.IntLiteral()
 	if intToken != nil {
-		i, err := strconv.ParseInt(intToken.GetText(), 0, 64)
-		if err == nil {
-			e.eval = func() (wdlValue, error) {
-				return newWdlInt(i, false, nil)
-			}
-			l.branching(e, false)
+		e.eval = func() (value, error) {
+			return primitiveFromLiteral(intToken.GetText(), Int)
 		}
+		l.branching(e, false)
 	}
 	// FloatLiteral
 	floatToken := ctx.FloatLiteral()
 	if floatToken != nil {
-		f, err := strconv.ParseFloat(floatToken.GetText(), 64)
-		if err == nil {
-			e.eval = func() (wdlValue, error) {
-				return newWdlFloat(f, false, nil)
-			}
-			l.branching(e, false)
+		e.eval = func() (value, error) {
+			return primitiveFromLiteral(floatToken.GetText(), Float)
 		}
+		l.branching(e, false)
 	}
 }
 
-func wdlOr(operands ...wdlValue) (wdlValue, error) {
+func wdlOr(operands ...value) (value, error) {
 	operandCount := len(operands)
 	if operandCount != 2 {
-		return wdlNone(), fmt.Errorf(
+		return makeNone(), fmt.Errorf(
 			"found %d operands, expect 2 for OR operation", operandCount,
 		)
 	}
 	x, y := operands[0], operands[1]
-	xIsBool, yIsBool := x.typ == wdlBoolean, y.typ == wdlBoolean
+	xIsBool, yIsBool := x.typ == Boolean, y.typ == Boolean
 	switch {
 	case xIsBool && yIsBool:
-		return newWdlBoolean(x.value.(bool) || y.value.(bool), false, nil)
+		return value{
+			typ: Boolean, govalue: x.govalue.(bool) || y.govalue.(bool),
+		}, nil
 	case xIsBool && (!yIsBool): // only y is invalid
-		return wdlNone(), fmt.Errorf(
+		return makeNone(), fmt.Errorf(
 			"found right operand is not bool, " +
 				"expect both operands being bool for OR operation",
 		)
 	case (!xIsBool) && yIsBool: // only x is invalid
-		return wdlNone(), fmt.Errorf(
+		return makeNone(), fmt.Errorf(
 			"found left operand is not bool, " +
 				"expect both operands being bool for OR operation",
 		)
 	default: // neither operands is valid
-		return wdlNone(), fmt.Errorf(
+		return makeNone(), fmt.Errorf(
 			"found neither left or right operands is bool, " +
 				"expect both operands being bool for OR operation",
 		)
@@ -228,14 +177,14 @@ func (l *wdlv1_1Listener) EnterLor(ctx *parser.LorContext) {
 		ctx.GetStop().GetStop(),
 		ctx.OR().GetText(),
 	)
-	e.eval = func() (wdlValue, error) {
+	e.eval = func() (value, error) {
 		x, errX := e.x.eval()
 		if errX != nil {
-			return wdlNone(), errX
+			return makeNone(), errX
 		}
 		y, errY := e.y.eval()
 		if errY != nil {
-			return wdlNone(), errY
+			return makeNone(), errY
 		}
 		return wdlOr(x, y)
 	}
@@ -267,30 +216,32 @@ func (l *wdlv1_1Listener) ExitLor(ctx *parser.LorContext) {
 	l.currentNode = l.currentNode.getParent()
 }
 
-func wdlAnd(operands ...wdlValue) (wdlValue, error) {
+func wdlAnd(operands ...value) (value, error) {
 	operandCount := len(operands)
 	if operandCount != 2 {
-		return wdlNone(), fmt.Errorf(
+		return makeNone(), fmt.Errorf(
 			"found %d operands, expect 2 for AND operation", operandCount,
 		)
 	}
 	x, y := operands[0], operands[1]
-	xIsBool, yIsBool := x.typ == wdlBoolean, y.typ == wdlBoolean
+	xIsBool, yIsBool := x.typ == Boolean, y.typ == Boolean
 	switch {
 	case xIsBool && yIsBool:
-		return newWdlBoolean(x.value.(bool) && y.value.(bool), false, nil)
+		return value{
+			typ: Boolean, govalue: x.govalue.(bool) && y.govalue.(bool),
+		}, nil
 	case xIsBool && (!yIsBool): // only y is invalid
-		return wdlNone(), fmt.Errorf(
+		return makeNone(), fmt.Errorf(
 			"found right operand is not bool, " +
 				"expect both operands being bool for AND operation",
 		)
 	case (!xIsBool) && yIsBool: // only x is invalid
-		return wdlNone(), fmt.Errorf(
+		return makeNone(), fmt.Errorf(
 			"found left operand is not bool, " +
 				"expect both operands being bool for AND operation",
 		)
 	default: // neither operands is valid
-		return wdlNone(), fmt.Errorf(
+		return makeNone(), fmt.Errorf(
 			"found neither left or right operands is bool, " +
 				"expect both operands being bool for AND operation",
 		)
@@ -303,14 +254,14 @@ func (l *wdlv1_1Listener) EnterLand(ctx *parser.LandContext) {
 		ctx.GetStop().GetStop(),
 		ctx.AND().GetText(),
 	)
-	e.eval = func() (wdlValue, error) {
+	e.eval = func() (value, error) {
 		x, errX := e.x.eval()
 		if errX != nil {
-			return wdlNone(), errX
+			return makeNone(), errX
 		}
 		y, errY := e.y.eval()
 		if errY != nil {
-			return wdlNone(), errY
+			return makeNone(), errY
 		}
 		return wdlAnd(x, y)
 	}
@@ -342,23 +293,23 @@ func (l *wdlv1_1Listener) ExitLand(ctx *parser.LandContext) {
 	l.currentNode = l.currentNode.getParent()
 }
 
-func wdlNegate(operands ...wdlValue) (wdlValue, error) {
+func wdlNegate(operands ...value) (value, error) {
 	operandCount := len(operands)
 	if operandCount != 1 {
-		return wdlNone(), fmt.Errorf(
+		return makeNone(), fmt.Errorf(
 			"found %d operands, expect 1 for negation", operandCount,
 		)
 	}
 	x := operands[0]
 	switch x.typ {
-	case wdlBoolean:
-		return newWdlBoolean(!x.value.(bool), false, nil)
-	case wdlInt:
-		return newWdlInt(-x.value.(int64), false, nil)
-	case wdlFloat:
-		return newWdlFloat(-x.value.(float64), false, nil)
+	case Boolean:
+		return value{typ: Boolean, govalue: !x.govalue.(bool)}, nil
+	case Int:
+		return value{typ: Int, govalue: -x.govalue.(int64)}, nil
+	case Float:
+		return value{typ: Float, govalue: -x.govalue.(float64)}, nil
 	default:
-		return wdlNone(), fmt.Errorf(
+		return makeNone(), fmt.Errorf(
 			"invalid operand: negation is only valid for boolean, int or float",
 		)
 	}
@@ -370,10 +321,10 @@ func (l *wdlv1_1Listener) EnterNegate(ctx *parser.NegateContext) {
 		ctx.GetStop().GetStop(),
 		ctx.NOT().GetText(),
 	)
-	e.eval = func() (wdlValue, error) {
+	e.eval = func() (value, error) {
 		y, errY := e.y.eval()
 		if errY != nil {
-			return wdlNone(), errY
+			return makeNone(), errY
 		}
 		return wdlNegate(y)
 	}
@@ -415,10 +366,10 @@ func (l *wdlv1_1Listener) EnterUnarysigned(ctx *parser.UnarysignedContext) {
 		ctx.GetStop().GetStop(),
 		opSym,
 	)
-	e.eval = func() (wdlValue, error) {
+	e.eval = func() (value, error) {
 		y, errY := e.y.eval()
 		if errY != nil {
-			return wdlNone(), errY
+			return makeNone(), errY
 		}
 		switch opSym {
 		case "-":
@@ -455,36 +406,41 @@ func (l *wdlv1_1Listener) ExitUnarysigned(ctx *parser.UnarysignedContext) {
 	l.currentNode = l.currentNode.getParent()
 }
 
-func wdlLt(operands ...wdlValue) (wdlValue, error) {
+func wdlLt(operands ...value) (value, error) {
 	operandCount := len(operands)
 	if operandCount != 2 {
-		return wdlNone(), fmt.Errorf(
+		return makeNone(), fmt.Errorf(
 			"found %d operands, expect 2 for less than comparison",
 			operandCount,
 		)
 	}
 	x, y := operands[0], operands[1]
 	switch {
-	case x.typ == wdlInt && y.typ == wdlInt:
-		return newWdlBoolean((x.value.(int64)) < (y.value.(int64)), false, nil)
-	case x.typ == wdlFloat && y.typ == wdlInt:
-		return newWdlBoolean(
-			(x.value.(float64)) < float64(y.value.(int64)), false, nil,
-		)
-	case x.typ == wdlInt && y.typ == wdlFloat:
-		return newWdlBoolean(
-			float64(x.value.(int64)) < (y.value.(float64)), false, nil,
-		)
-	case x.typ == wdlFloat && y.typ == wdlFloat:
-		return newWdlBoolean(
-			(x.value.(float64)) < (y.value.(float64)), false, nil,
-		)
-	case x.typ == wdlString && y.typ == wdlString:
-		return newWdlBoolean(
-			(x.value.(string)) < (y.value.(string)), false, nil,
-		)
+	case x.typ == Int && y.typ == Int:
+		return value{
+			typ: Boolean, govalue: (x.govalue.(int64)) < (y.govalue.(int64)),
+		}, nil
+	case x.typ == Float && y.typ == Int:
+		return value{
+			typ:     Boolean,
+			govalue: (x.govalue.(float64)) < float64(y.govalue.(int64)),
+		}, nil
+	case x.typ == Int && y.typ == Float:
+		return value{
+			typ:     Boolean,
+			govalue: float64(x.govalue.(int64)) < (y.govalue.(float64)),
+		}, nil
+	case x.typ == Float && y.typ == Float:
+		return value{
+			typ:     Boolean,
+			govalue: (x.govalue.(float64)) < (y.govalue.(float64)),
+		}, nil
+	case x.typ == String && y.typ == String:
+		return value{
+			typ: Boolean, govalue: (x.govalue.(string)) < (y.govalue.(string)),
+		}, nil
 	default: // neither operands is int, float or string
-		return wdlNone(), fmt.Errorf(
+		return makeNone(), fmt.Errorf(
 			"invalid operands: less than comparison is only valid for" +
 				" int, float or string",
 		)
@@ -497,14 +453,14 @@ func (l *wdlv1_1Listener) EnterLt(ctx *parser.LtContext) {
 		ctx.GetStop().GetStop(),
 		ctx.LT().GetText(),
 	)
-	e.eval = func() (wdlValue, error) {
+	e.eval = func() (value, error) {
 		x, errX := e.x.eval()
 		if errX != nil {
-			return wdlNone(), errX
+			return makeNone(), errX
 		}
 		y, errY := e.y.eval()
 		if errY != nil {
-			return wdlNone(), errY
+			return makeNone(), errY
 		}
 		return wdlLt(x, y)
 	}
@@ -536,36 +492,41 @@ func (l *wdlv1_1Listener) ExitLt(ctx *parser.LtContext) {
 	l.currentNode = l.currentNode.getParent()
 }
 
-func wdlLe(operands ...wdlValue) (wdlValue, error) {
+func wdlLe(operands ...value) (value, error) {
 	operandCount := len(operands)
 	if operandCount != 2 {
-		return wdlNone(), fmt.Errorf(
+		return makeNone(), fmt.Errorf(
 			"found %d operands, expect 2 for less than or equal to comparison",
 			operandCount,
 		)
 	}
 	x, y := operands[0], operands[1]
 	switch {
-	case x.typ == wdlInt && y.typ == wdlInt:
-		return newWdlBoolean((x.value.(int64)) <= (y.value.(int64)), false, nil)
-	case x.typ == wdlFloat && y.typ == wdlInt:
-		return newWdlBoolean(
-			(x.value.(float64)) <= float64(y.value.(int64)), false, nil,
-		)
-	case x.typ == wdlInt && y.typ == wdlFloat:
-		return newWdlBoolean(
-			float64(x.value.(int64)) <= (y.value.(float64)), false, nil,
-		)
-	case x.typ == wdlFloat && y.typ == wdlFloat:
-		return newWdlBoolean(
-			(x.value.(float64)) <= (y.value.(float64)), false, nil,
-		)
-	case x.typ == wdlString && y.typ == wdlString:
-		return newWdlBoolean(
-			(x.value.(string)) <= (y.value.(string)), false, nil,
-		)
+	case x.typ == Int && y.typ == Int:
+		return value{
+			typ: Boolean, govalue: (x.govalue.(int64)) <= (y.govalue.(int64)),
+		}, nil
+	case x.typ == Float && y.typ == Int:
+		return value{
+			typ:     Boolean,
+			govalue: (x.govalue.(float64)) <= float64(y.govalue.(int64)),
+		}, nil
+	case x.typ == Int && y.typ == Float:
+		return value{
+			typ:     Boolean,
+			govalue: float64(x.govalue.(int64)) <= (y.govalue.(float64)),
+		}, nil
+	case x.typ == Float && y.typ == Float:
+		return value{
+			typ:     Boolean,
+			govalue: (x.govalue.(float64)) <= (y.govalue.(float64)),
+		}, nil
+	case x.typ == String && y.typ == String:
+		return value{
+			typ: Boolean, govalue: (x.govalue.(string)) <= (y.govalue.(string)),
+		}, nil
 	default: // neither operands is int, float or string
-		return wdlNone(), fmt.Errorf(
+		return makeNone(), fmt.Errorf(
 			"invalid operands: less than or equal to comparison is only valid" +
 				" for int, float or string",
 		)
@@ -578,14 +539,14 @@ func (l *wdlv1_1Listener) EnterLte(ctx *parser.LteContext) {
 		ctx.GetStop().GetStop(),
 		ctx.LTE().GetText(),
 	)
-	e.eval = func() (wdlValue, error) {
+	e.eval = func() (value, error) {
 		x, errX := e.x.eval()
 		if errX != nil {
-			return wdlNone(), errX
+			return makeNone(), errX
 		}
 		y, errY := e.y.eval()
 		if errY != nil {
-			return wdlNone(), errY
+			return makeNone(), errY
 		}
 		return wdlLe(x, y)
 	}
@@ -618,10 +579,10 @@ func (l *wdlv1_1Listener) ExitLte(ctx *parser.LteContext) {
 	l.currentNode = l.currentNode.getParent()
 }
 
-func wdlGe(operands ...wdlValue) (wdlValue, error) {
+func wdlGe(operands ...value) (value, error) {
 	operandCount := len(operands)
 	if operandCount != 2 {
-		return wdlNone(), fmt.Errorf(
+		return makeNone(), fmt.Errorf(
 			"found %d operands, expect 2 for greater than or equal to"+
 				" comparison",
 			operandCount,
@@ -629,26 +590,31 @@ func wdlGe(operands ...wdlValue) (wdlValue, error) {
 	}
 	x, y := operands[0], operands[1]
 	switch {
-	case x.typ == wdlInt && y.typ == wdlInt:
-		return newWdlBoolean((x.value.(int64)) >= (y.value.(int64)), false, nil)
-	case x.typ == wdlFloat && y.typ == wdlInt:
-		return newWdlBoolean(
-			(x.value.(float64)) >= float64(y.value.(int64)), false, nil,
-		)
-	case x.typ == wdlInt && y.typ == wdlFloat:
-		return newWdlBoolean(
-			float64(x.value.(int64)) >= (y.value.(float64)), false, nil,
-		)
-	case x.typ == wdlFloat && y.typ == wdlFloat:
-		return newWdlBoolean(
-			(x.value.(float64)) >= (y.value.(float64)), false, nil,
-		)
-	case x.typ == wdlString && y.typ == wdlString:
-		return newWdlBoolean(
-			(x.value.(string)) >= (y.value.(string)), false, nil,
-		)
+	case x.typ == Int && y.typ == Int:
+		return value{
+			typ: Boolean, govalue: (x.govalue.(int64)) >= (y.govalue.(int64)),
+		}, nil
+	case x.typ == Float && y.typ == Int:
+		return value{
+			typ:     Boolean,
+			govalue: (x.govalue.(float64)) >= float64(y.govalue.(int64)),
+		}, nil
+	case x.typ == Int && y.typ == Float:
+		return value{
+			typ:     Boolean,
+			govalue: float64(x.govalue.(int64)) >= (y.govalue.(float64)),
+		}, nil
+	case x.typ == Float && y.typ == Float:
+		return value{
+			typ:     Boolean,
+			govalue: (x.govalue.(float64)) >= (y.govalue.(float64)),
+		}, nil
+	case x.typ == String && y.typ == String:
+		return value{
+			typ: Boolean, govalue: (x.govalue.(string)) >= (y.govalue.(string)),
+		}, nil
 	default: // neither operands is int, float or string
-		return wdlNone(), fmt.Errorf(
+		return makeNone(), fmt.Errorf(
 			"invalid operands: greater than or equal to comparison is" +
 				" only valid for int, float or string",
 		)
@@ -661,14 +627,14 @@ func (l *wdlv1_1Listener) EnterGte(ctx *parser.GteContext) {
 		ctx.GetStop().GetStop(),
 		ctx.GTE().GetText(),
 	)
-	e.eval = func() (wdlValue, error) {
+	e.eval = func() (value, error) {
 		x, errX := e.x.eval()
 		if errX != nil {
-			return wdlNone(), errX
+			return makeNone(), errX
 		}
 		y, errY := e.y.eval()
 		if errY != nil {
-			return wdlNone(), errY
+			return makeNone(), errY
 		}
 		return wdlGe(x, y)
 	}
@@ -701,36 +667,41 @@ func (l *wdlv1_1Listener) ExitGte(ctx *parser.GteContext) {
 	l.currentNode = l.currentNode.getParent()
 }
 
-func wdlGt(operands ...wdlValue) (wdlValue, error) {
+func wdlGt(operands ...value) (value, error) {
 	operandCount := len(operands)
 	if operandCount != 2 {
-		return wdlNone(), fmt.Errorf(
+		return makeNone(), fmt.Errorf(
 			"found %d operands, expect 2 for greater than comparison",
 			operandCount,
 		)
 	}
 	x, y := operands[0], operands[1]
 	switch {
-	case x.typ == wdlInt && y.typ == wdlInt:
-		return newWdlBoolean((x.value.(int64)) > (y.value.(int64)), false, nil)
-	case x.typ == wdlFloat && y.typ == wdlInt:
-		return newWdlBoolean(
-			(x.value.(float64)) > float64(y.value.(int64)), false, nil,
-		)
-	case x.typ == wdlInt && y.typ == wdlFloat:
-		return newWdlBoolean(
-			float64(x.value.(int64)) > (y.value.(float64)), false, nil,
-		)
-	case x.typ == wdlFloat && y.typ == wdlFloat:
-		return newWdlBoolean(
-			(x.value.(float64)) > (y.value.(float64)), false, nil,
-		)
-	case x.typ == wdlString && y.typ == wdlString:
-		return newWdlBoolean(
-			(x.value.(string)) > (y.value.(string)), false, nil,
-		)
+	case x.typ == Int && y.typ == Int:
+		return value{
+			typ: Boolean, govalue: (x.govalue.(int64)) > (y.govalue.(int64)),
+		}, nil
+	case x.typ == Float && y.typ == Int:
+		return value{
+			typ:     Boolean,
+			govalue: (x.govalue.(float64)) > float64(y.govalue.(int64)),
+		}, nil
+	case x.typ == Int && y.typ == Float:
+		return value{
+			typ:     Boolean,
+			govalue: float64(x.govalue.(int64)) > (y.govalue.(float64)),
+		}, nil
+	case x.typ == Float && y.typ == Float:
+		return value{
+			typ:     Boolean,
+			govalue: (x.govalue.(float64)) > (y.govalue.(float64)),
+		}, nil
+	case x.typ == String && y.typ == String:
+		return value{
+			typ: Boolean, govalue: (x.govalue.(string)) > (y.govalue.(string)),
+		}, nil
 	default: // neither operands is int, float or string
-		return wdlNone(), fmt.Errorf(
+		return makeNone(), fmt.Errorf(
 			"invalid operands: greater than comparison is only valid" +
 				" for int, float or string",
 		)
@@ -743,14 +714,14 @@ func (l *wdlv1_1Listener) EnterGt(ctx *parser.GtContext) {
 		ctx.GetStop().GetStop(),
 		ctx.GT().GetText(),
 	)
-	e.eval = func() (wdlValue, error) {
+	e.eval = func() (value, error) {
 		x, errX := e.x.eval()
 		if errX != nil {
-			return wdlNone(), errX
+			return makeNone(), errX
 		}
 		y, errY := e.y.eval()
 		if errY != nil {
-			return wdlNone(), errY
+			return makeNone(), errY
 		}
 		return wdlGt(x, y)
 	}
@@ -782,31 +753,35 @@ func (l *wdlv1_1Listener) ExitGt(ctx *parser.GtContext) {
 	l.currentNode = l.currentNode.getParent()
 }
 
-func wdlMul(operands ...wdlValue) (wdlValue, error) {
+func wdlMul(operands ...value) (value, error) {
 	operandCount := len(operands)
 	if operandCount != 2 {
-		return wdlNone(), fmt.Errorf(
+		return makeNone(), fmt.Errorf(
 			"found %d operands, expect 2 for multiplication", operandCount,
 		)
 	}
 	x, y := operands[0], operands[1]
 	switch {
-	case x.typ == wdlInt && y.typ == wdlInt:
-		return newWdlInt((x.value.(int64))*(y.value.(int64)), false, nil)
-	case x.typ == wdlFloat && y.typ == wdlInt:
-		return newWdlFloat(
-			(x.value.(float64))*float64(y.value.(int64)), false, nil,
-		)
-	case x.typ == wdlInt && y.typ == wdlFloat:
-		return newWdlFloat(
-			float64(x.value.(int64))*(y.value.(float64)), false, nil,
-		)
-	case x.typ == wdlFloat && y.typ == wdlFloat:
-		return newWdlFloat(
-			(x.value.(float64))*(y.value.(float64)), false, nil,
-		)
+	case x.typ == Int && y.typ == Int:
+		return value{
+			typ: Int, govalue: (x.govalue.(int64)) * (y.govalue.(int64)),
+		}, nil
+	case x.typ == Float && y.typ == Int:
+		return value{
+			typ:     Float,
+			govalue: (x.govalue.(float64)) * float64(y.govalue.(int64)),
+		}, nil
+	case x.typ == Int && y.typ == Float:
+		return value{
+			typ:     Float,
+			govalue: float64(x.govalue.(int64)) * (y.govalue.(float64)),
+		}, nil
+	case x.typ == Float && y.typ == Float:
+		return value{
+			typ: Float, govalue: (x.govalue.(float64)) * (y.govalue.(float64)),
+		}, nil
 	default: // neither operands is int or float
-		return wdlNone(), fmt.Errorf(
+		return makeNone(), fmt.Errorf(
 			"invalid operands: multiplication is only valid for int or float",
 		)
 	}
@@ -818,14 +793,14 @@ func (l *wdlv1_1Listener) EnterMul(ctx *parser.MulContext) {
 		ctx.GetStop().GetStop(),
 		ctx.STAR().GetText(),
 	)
-	e.eval = func() (wdlValue, error) {
+	e.eval = func() (value, error) {
 		x, errX := e.x.eval()
 		if errX != nil {
-			return wdlNone(), errX
+			return makeNone(), errX
 		}
 		y, errY := e.y.eval()
 		if errY != nil {
-			return wdlNone(), errY
+			return makeNone(), errY
 		}
 		return wdlMul(x, y)
 	}
@@ -857,31 +832,35 @@ func (l *wdlv1_1Listener) ExitMul(ctx *parser.MulContext) {
 	l.currentNode = l.currentNode.getParent()
 }
 
-func wdlDiv(operands ...wdlValue) (wdlValue, error) {
+func wdlDiv(operands ...value) (value, error) {
 	operandCount := len(operands)
 	if operandCount != 2 {
-		return wdlNone(), fmt.Errorf(
+		return makeNone(), fmt.Errorf(
 			"found %d operands, expect 2 for division", operandCount,
 		)
 	}
 	x, y := operands[0], operands[1]
 	switch {
-	case x.typ == wdlInt && y.typ == wdlInt:
-		return newWdlInt((x.value.(int64))/(y.value.(int64)), false, nil)
-	case x.typ == wdlFloat && y.typ == wdlInt:
-		return newWdlFloat(
-			(x.value.(float64))/float64(y.value.(int64)), false, nil,
-		)
-	case x.typ == wdlInt && y.typ == wdlFloat:
-		return newWdlFloat(
-			float64(x.value.(int64))/(y.value.(float64)), false, nil,
-		)
-	case x.typ == wdlFloat && y.typ == wdlFloat:
-		return newWdlFloat(
-			(x.value.(float64))/(y.value.(float64)), false, nil,
-		)
+	case x.typ == Int && y.typ == Int:
+		return value{
+			typ: Int, govalue: (x.govalue.(int64)) / (y.govalue.(int64)),
+		}, nil
+	case x.typ == Float && y.typ == Int:
+		return value{
+			typ:     Float,
+			govalue: (x.govalue.(float64)) / float64(y.govalue.(int64)),
+		}, nil
+	case x.typ == Int && y.typ == Float:
+		return value{
+			typ:     Float,
+			govalue: float64(x.govalue.(int64)) / (y.govalue.(float64)),
+		}, nil
+	case x.typ == Float && y.typ == Float:
+		return value{
+			typ: Float, govalue: (x.govalue.(float64)) / (y.govalue.(float64)),
+		}, nil
 	default: // neither operands is int or float
-		return wdlNone(), fmt.Errorf(
+		return makeNone(), fmt.Errorf(
 			"invalid operands: division is only valid for int or float",
 		)
 	}
@@ -893,14 +872,14 @@ func (l *wdlv1_1Listener) EnterDivide(ctx *parser.DivideContext) {
 		ctx.GetStop().GetStop(),
 		ctx.DIVIDE().GetText(),
 	)
-	e.eval = func() (wdlValue, error) {
+	e.eval = func() (value, error) {
 		x, errX := e.x.eval()
 		if errX != nil {
-			return wdlNone(), errX
+			return makeNone(), errX
 		}
 		y, errY := e.y.eval()
 		if errY != nil {
-			return wdlNone(), errY
+			return makeNone(), errY
 		}
 		return wdlDiv(x, y)
 	}
@@ -932,31 +911,36 @@ func (l *wdlv1_1Listener) ExitDivide(ctx *parser.DivideContext) {
 	l.currentNode = l.currentNode.getParent()
 }
 
-func wdlMod(operands ...wdlValue) (wdlValue, error) {
+func wdlMod(operands ...value) (value, error) {
 	operandCount := len(operands)
 	if operandCount != 2 {
-		return wdlNone(), fmt.Errorf(
+		return makeNone(), fmt.Errorf(
 			"found %d operands, expect 2 for modulo", operandCount,
 		)
 	}
 	x, y := operands[0], operands[1]
 	switch {
-	case x.typ == wdlInt && y.typ == wdlInt:
-		return newWdlInt((x.value.(int64))%(y.value.(int64)), false, nil)
-	case x.typ == wdlFloat && y.typ == wdlInt:
-		return newWdlFloat(
-			math.Mod(x.value.(float64), float64(y.value.(int64))), false, nil,
-		)
-	case x.typ == wdlInt && y.typ == wdlFloat:
-		return newWdlFloat(
-			math.Mod(float64(x.value.(int64)), y.value.(float64)), false, nil,
-		)
-	case x.typ == wdlFloat && y.typ == wdlFloat:
-		return newWdlFloat(
-			math.Mod(x.value.(float64), y.value.(float64)), false, nil,
-		)
+	case x.typ == Int && y.typ == Int:
+		return value{
+			typ: Int, govalue: (x.govalue.(int64)) % (y.govalue.(int64)),
+		}, nil
+	case x.typ == Float && y.typ == Int:
+		return value{
+			typ:     Float,
+			govalue: math.Mod(x.govalue.(float64), float64(y.govalue.(int64))),
+		}, nil
+	case x.typ == Int && y.typ == Float:
+		return value{
+			typ:     Float,
+			govalue: math.Mod(float64(x.govalue.(int64)), y.govalue.(float64)),
+		}, nil
+	case x.typ == Float && y.typ == Float:
+		return value{
+			typ:     Float,
+			govalue: math.Mod(x.govalue.(float64), y.govalue.(float64)),
+		}, nil
 	default: // neither operands is int or float
-		return wdlNone(), fmt.Errorf(
+		return makeNone(), fmt.Errorf(
 			"invalid operands: modulo is only valid for int or float",
 		)
 	}
@@ -968,14 +952,14 @@ func (l *wdlv1_1Listener) EnterMod(ctx *parser.ModContext) {
 		ctx.GetStop().GetStop(),
 		ctx.MOD().GetText(),
 	)
-	e.eval = func() (wdlValue, error) {
+	e.eval = func() (value, error) {
 		x, errX := e.x.eval()
 		if errX != nil {
-			return wdlNone(), errX
+			return makeNone(), errX
 		}
 		y, errY := e.y.eval()
 		if errY != nil {
-			return wdlNone(), errY
+			return makeNone(), errY
 		}
 		return wdlMod(x, y)
 	}
@@ -1007,31 +991,35 @@ func (l *wdlv1_1Listener) ExitMod(ctx *parser.ModContext) {
 	l.currentNode = l.currentNode.getParent()
 }
 
-func wdlSub(operands ...wdlValue) (wdlValue, error) {
+func wdlSub(operands ...value) (value, error) {
 	operandCount := len(operands)
 	if operandCount != 2 {
-		return wdlNone(), fmt.Errorf(
+		return makeNone(), fmt.Errorf(
 			"found %d operands, expect 2 for subtraction", operandCount,
 		)
 	}
 	x, y := operands[0], operands[1]
 	switch {
-	case x.typ == wdlInt && y.typ == wdlInt:
-		return newWdlInt((x.value.(int64))-(y.value.(int64)), false, nil)
-	case x.typ == wdlFloat && y.typ == wdlInt:
-		return newWdlFloat(
-			(x.value.(float64))-float64(y.value.(int64)), false, nil,
-		)
-	case x.typ == wdlInt && y.typ == wdlFloat:
-		return newWdlFloat(
-			float64(x.value.(int64))-(y.value.(float64)), false, nil,
-		)
-	case x.typ == wdlFloat && y.typ == wdlFloat:
-		return newWdlFloat(
-			(x.value.(float64))-(y.value.(float64)), false, nil,
-		)
+	case x.typ == Int && y.typ == Int:
+		return value{
+			typ: Int, govalue: (x.govalue.(int64)) - (y.govalue.(int64)),
+		}, nil
+	case x.typ == Float && y.typ == Int:
+		return value{
+			typ:     Float,
+			govalue: (x.govalue.(float64)) - float64(y.govalue.(int64)),
+		}, nil
+	case x.typ == Int && y.typ == Float:
+		return value{
+			typ:     Float,
+			govalue: float64(x.govalue.(int64)) - (y.govalue.(float64)),
+		}, nil
+	case x.typ == Float && y.typ == Float:
+		return value{
+			typ: Float, govalue: (x.govalue.(float64)) - (y.govalue.(float64)),
+		}, nil
 	default: // neither operands is int or float
-		return wdlNone(), fmt.Errorf(
+		return makeNone(), fmt.Errorf(
 			"invalid operands: subtraction is only valid for int or float",
 		)
 	}
@@ -1043,14 +1031,14 @@ func (l *wdlv1_1Listener) EnterSub(ctx *parser.SubContext) {
 		ctx.GetStop().GetStop(),
 		ctx.MINUS().GetText(),
 	)
-	e.eval = func() (wdlValue, error) {
+	e.eval = func() (value, error) {
 		x, errX := e.x.eval()
 		if errX != nil {
-			return wdlNone(), errX
+			return makeNone(), errX
 		}
 		y, errY := e.y.eval()
 		if errY != nil {
-			return wdlNone(), errY
+			return makeNone(), errY
 		}
 		return wdlSub(x, y)
 	}
@@ -1090,10 +1078,10 @@ func (l *wdlv1_1Listener) EnterExpression_group(
 		ctx.GetStop().GetStop(),
 		"()",
 	)
-	e.eval = func() (wdlValue, error) {
+	e.eval = func() (value, error) {
 		x, errX := e.x.eval()
 		if errX != nil {
-			return wdlNone(), errX
+			return makeNone(), errX
 		}
 		return x, nil
 	}

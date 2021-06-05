@@ -31,8 +31,8 @@ func TestBoolLiteralOrAndNot(t *testing.T) {
 		if evalErr != nil {
 			t.Errorf("Fail to evaluate %v: %w", tc.wdl, evalErr)
 		}
-		if v.value != tc.want {
-			t.Errorf("Evaluate %v as %v, expect %t", tc.wdl, v, tc.want)
+		if v.govalue != tc.want {
+			t.Errorf("Evaluate %v as %v, expect %t", tc.wdl, v.govalue, tc.want)
 		}
 	}
 }
@@ -73,8 +73,8 @@ func TestComparison(t *testing.T) {
 		if evalErr != nil {
 			t.Errorf("Fail to evaluate %v: %w", tc.wdl, evalErr)
 		}
-		if v.value != tc.want {
-			t.Errorf("Evaluate %v as %v, expect %v", tc.wdl, v, tc.want)
+		if v.govalue != tc.want {
+			t.Errorf("Evaluate %v as %v, expect %v", tc.wdl, v.govalue, tc.want)
 		}
 	}
 }
@@ -124,8 +124,8 @@ func TestArithmetic(t *testing.T) {
 		if evalErr != nil {
 			t.Errorf("Fail to evaluate %v: %w", tc.wdl, evalErr)
 		}
-		if v.value != tc.want {
-			t.Errorf("Evaluate %v as %v, expect %v", tc.wdl, v, tc.want)
+		if v.govalue != tc.want {
+			t.Errorf("Evaluate %v as %v, expect %v", tc.wdl, v.govalue, tc.want)
 		}
 	}
 }
