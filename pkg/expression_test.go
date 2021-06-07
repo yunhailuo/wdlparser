@@ -27,7 +27,7 @@ func TestBoolLiteralOrAndNot(t *testing.T) {
 				"Found %d errors in %q, expect no errors", len(err), tc.wdl,
 			)
 		}
-		v, evalErr := result.Workflow.Inputs[0].expr.eval()
+		v, evalErr := result.Workflow.Inputs[0].evaluator.eval()
 		if evalErr != nil {
 			t.Errorf("Fail to evaluate %v: %w", tc.wdl, evalErr)
 		}
@@ -69,7 +69,7 @@ func TestComparison(t *testing.T) {
 				"Found %d errors in %q, expect no errors", len(err), tc.wdl,
 			)
 		}
-		v, evalErr := result.Workflow.Inputs[0].expr.eval()
+		v, evalErr := result.Workflow.Inputs[0].evaluator.eval()
 		if evalErr != nil {
 			t.Errorf("Fail to evaluate %v: %w", tc.wdl, evalErr)
 		}
@@ -120,7 +120,7 @@ func TestArithmetic(t *testing.T) {
 				"Found %d errors in %q, expect no errors", len(err), tc.wdl,
 			)
 		}
-		v, evalErr := result.Workflow.Inputs[0].expr.eval()
+		v, evalErr := result.Workflow.Inputs[0].evaluator.eval()
 		if evalErr != nil {
 			t.Errorf("Fail to evaluate %v: %w", tc.wdl, evalErr)
 		}

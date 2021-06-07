@@ -85,7 +85,7 @@ type (
 	decl      struct {
 		vertex
 		identifier string
-		expr       *expr
+		evaluator  evaluator
 		typ        declType
 		value      declValue
 	}
