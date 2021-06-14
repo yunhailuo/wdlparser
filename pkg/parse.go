@@ -37,19 +37,67 @@ func (l *wdlv1_1Listener) ExitVersion(ctx *parser.VersionContext) {
 	l.wdl.Version = ctx.ReleaseVersion().GetText()
 }
 
+func (l *wdlv1_1Listener) EnterImport_doc(ctx *parser.Import_docContext) {
+	l.branching(
+		newImportSpec(
+			ctx.GetStart().GetStart(),
+			ctx.GetStop().GetStop(),
+			strings.Trim(ctx.R_string().GetText(), `"`),
+		),
+		true,
+	)
+}
+
 func (l *wdlv1_1Listener) ExitImport_doc(ctx *parser.Import_docContext) {
-	// Build an import node
-	importPath := strings.Trim(ctx.R_string().GetText(), `"`)
-	importedWdl := NewWDL(importPath, 0)
-	importedWdl.setKind(imp)
-	for _, child := range ctx.GetChildren() {
-		switch childCtx := child.(type) {
-		case *parser.Import_asContext:
-			importedWdl.alias = childCtx.Identifier().GetText()
-		}
+	currNode, isImportSpec := l.currentNode.(*importSpec)
+	if !isImportSpec {
+		log.Fatal(
+			newMismatchContextError(
+				ctx.GetStart().GetLine(),
+				ctx.GetStart().GetColumn(),
+				"import statement",
+				"importSpec",
+				l.currentNode,
+			),
+		)
 	}
-	// Put the import node into AST
-	l.wdl.Imports = append(l.wdl.Imports, importedWdl)
+	l.wdl.Imports = append(l.wdl.Imports, currNode)
+	l.currentNode = l.currentNode.getParent()
+}
+
+func (l *wdlv1_1Listener) ExitImport_as(ctx *parser.Import_asContext) {
+	currNode, isImportSpec := l.currentNode.(*importSpec)
+	if !isImportSpec {
+		log.Fatal(
+			newMismatchContextError(
+				ctx.GetStart().GetLine(),
+				ctx.GetStart().GetColumn(),
+				"import statement",
+				"importSpec",
+				l.currentNode,
+			),
+		)
+	}
+	currNode.alias = ctx.Identifier().GetText()
+}
+
+func (l *wdlv1_1Listener) ExitImport_alias(ctx *parser.Import_aliasContext) {
+	currNode, isImportSpec := l.currentNode.(*importSpec)
+	if !isImportSpec {
+		log.Fatal(
+			newMismatchContextError(
+				ctx.GetStart().GetLine(),
+				ctx.GetStart().GetColumn(),
+				"import statement",
+				"importSpec",
+				l.currentNode,
+			),
+		)
+	}
+	currNode.importAliases[ctx.Identifier(0).GetText()] = ctx.Identifier(
+		1,
+	).GetText()
+
 }
 
 func (l *wdlv1_1Listener) ExitUnbound_decls(ctx *parser.Unbound_declsContext) {

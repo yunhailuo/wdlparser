@@ -25,20 +25,29 @@ func TestVersion(t *testing.T) {
 func TestImport(t *testing.T) {
 	inputPath := "testdata/import.wdl"
 	result, err := Antlr4Parse(inputPath)
-	import1 := NewWDL("test.wdl", 0)
-	import1.setKind(imp)
-	import2 := NewWDL("http://example.com/lib/analysis_tasks", 0)
-	import2.setKind(imp)
-	import2.alias = "analysis"
-	import3 := NewWDL("https://example.com/lib/stdlib.wdl", 0)
-	import3.setKind(imp)
-	expectedImports := []*WDL{import1, import2, import3}
 	if err != nil {
 		t.Errorf(
 			"Found %d errors in %q, expect no errors", len(err), inputPath,
 		)
 	}
-	resultImports := result.Imports
+
+	import1 := newImportSpec(13, 29, "test.wdl")
+	import1.parent = result
+	import2 := newImportSpec(31, 88, "http://example.com/lib/analysis_tasks")
+	import2.parent = result
+	import2.alias = "analysis"
+	import3 := newImportSpec(90, 216, "https://example.com/lib/stdlib.wdl")
+	import3.parent = result
+	import3.importAliases = map[string]string{
+		"Parent":     "Parent2",
+		"Child":      "Child2",
+		"GrandChild": "GrandChild2",
+	}
+	expectedImports := []importSpec{*import1, *import2, *import3}
+	resultImports := []importSpec{}
+	for i := range result.Imports {
+		resultImports = append(resultImports, *result.Imports[i])
+	}
 	if !reflect.DeepEqual(resultImports, expectedImports) {
 		t.Errorf(
 			"Found imports %v, expect %v",

@@ -1,6 +1,7 @@
 package wdlparser
 
 import (
+	"log"
 	"path"
 	"strings"
 )
@@ -120,7 +121,7 @@ type WDL struct {
 	object
 	Path     string
 	Version  string
-	Imports  []*WDL
+	Imports  []*importSpec
 	Workflow *Workflow
 	Tasks    []*Task
 	Structs  []*decl
@@ -136,6 +137,27 @@ func NewWDL(wdlPath string, size int) *WDL {
 		strings.TrimSuffix(path.Base(wdlPath), ".wdl"),
 	)
 	return wdl
+}
+
+type importSpec struct {
+	object
+	uri           string
+	importAliases map[string]string // key is original name and value is alias
+}
+
+func newImportSpec(start, end int, uri string) *importSpec {
+	is := new(importSpec)
+	is.uri = uri
+	is.object = *newObject(
+		start, end, imp, strings.TrimSuffix(path.Base(uri), ".wdl"),
+	)
+	is.importAliases = map[string]string{}
+	return is
+}
+
+func (v *importSpec) getKind() nodeKind { return imp }
+func (v *importSpec) setKind(kind nodeKind) {
+	log.Fatal("cannot setKind on importSpec node; it's imp node only")
 }
 
 // A Workflow represents one parsed workflow.
