@@ -32,12 +32,12 @@ func TestImport(t *testing.T) {
 	}
 
 	import1 := newImportSpec(13, 29, "test.wdl")
-	import1.parent = result
+	import1.setParent(result)
 	import2 := newImportSpec(31, 88, "http://example.com/lib/analysis_tasks")
-	import2.parent = result
+	import2.setParent(result)
 	import2.alias = "analysis"
 	import3 := newImportSpec(90, 216, "https://example.com/lib/stdlib.wdl")
-	import3.parent = result
+	import3.setParent(result)
 	import3.importAliases = map[string]string{
 		"Parent":     "Parent2",
 		"Child":      "Child2",
@@ -59,20 +59,18 @@ func TestImport(t *testing.T) {
 func TestWorkflowInput(t *testing.T) {
 	inputPath := "testdata/workflow_input.wdl"
 	result, err := Antlr4Parse(inputPath)
-	expectedInput := []*decl{
-		newDecl(
-			50, 65, ipt, "input_str", "String", "",
-		),
-		newDecl(
-			75, 94, ipt, "input_file_path", "File", "",
-		),
-	}
 	if err != nil {
 		t.Errorf(
 			"Found %d errors in %q, expect no errors", len(err), inputPath,
 		)
 	}
-	resultInput := result.Workflow.Inputs
+
+	input1 := newDecl(50, 65, "input_str", "String", "")
+	input1.setParent(result.Workflow.Inputs)
+	input2 := newDecl(75, 94, "input_file_path", "File", "")
+	input2.setParent(result.Workflow.Inputs)
+	expectedInput := []*decl{input1, input2}
+	resultInput := result.Workflow.Inputs.decls
 	if !reflect.DeepEqual(resultInput, expectedInput) {
 		t.Errorf(
 			"Found workflow input %v, expect %v",
@@ -84,20 +82,16 @@ func TestWorkflowInput(t *testing.T) {
 func TestWorkflowPrivateDeclaration(t *testing.T) {
 	inputPath := "testdata/workflow_private_declaration.wdl"
 	result, err := Antlr4Parse(inputPath)
-	expectedPrivateDecl := []*decl{
-		newDecl(
-			47, 64, dcl, "s", "String", `"Hello"`,
-		),
-	}
 	if err != nil {
 		t.Errorf(
 			"Found %d errors in %q, expect no errors", len(err), inputPath,
 		)
 	}
+
+	prvtDecl1 := newDecl(47, 64, "s", "String", `"Hello"`)
+	prvtDecl1.setParent(result.Workflow)
+	expectedPrivateDecl := []*decl{prvtDecl1}
 	resultPrivateDecl := result.Workflow.PrvtDecls
-	for _, c := range expectedPrivateDecl {
-		c.setParent(result.Workflow)
-	}
 	if !reflect.DeepEqual(resultPrivateDecl, expectedPrivateDecl) {
 		t.Errorf(
 			"Found workflow private declaration %v, expect %v",
@@ -112,19 +106,13 @@ func TestWorkflowCall(t *testing.T) {
 	expectedFirstCall := NewCall(39, 150, "Greeting")
 	expectedFirstCall.alias = "hello"
 	expectedFirstCall.Inputs = []*keyValue{
-		newKeyValue(
-			91, 113, ipt, "first_name", "first_name",
-		),
-		newKeyValue(
-			128, 144, ipt, "last_name", `"Luo"`,
-		),
+		newKeyValue(91, 113, "first_name", "first_name"),
+		newKeyValue(128, 144, "last_name", `"Luo"`),
 	}
 	expectedSecondCall := NewCall(156, 213, "Goodbye")
 	expectedSecondCall.After = "hello"
 	expectedSecondCall.Inputs = []*keyValue{
-		newKeyValue(
-			190, 210, ipt, "first_name", `"Yunhai"`,
-		),
+		newKeyValue(190, 210, "first_name", `"Yunhai"`),
 	}
 	expectCalls := []*Call{expectedFirstCall, expectedSecondCall}
 	if err != nil {
@@ -147,20 +135,16 @@ func TestWorkflowCall(t *testing.T) {
 func TestWorkflowOutput(t *testing.T) {
 	inputPath := "testdata/workflow_output.wdl"
 	result, err := Antlr4Parse(inputPath)
-	expectedOutput := []*decl{
-		newDecl(
-			52, 87, opt, "output_file", "File", `"/Path/to/output"`,
-		),
-	}
 	if err != nil {
 		t.Errorf(
 			"Found %d errors in %q, expect no errors", len(err), inputPath,
 		)
 	}
-	resultOutput := result.Workflow.Outputs
-	for _, c := range expectedOutput {
-		c.setParent(result.Workflow)
-	}
+
+	output1 := newDecl(52, 87, "output_file", "File", `"/Path/to/output"`)
+	output1.setParent(result.Workflow.Outputs)
+	expectedOutput := []*decl{output1}
+	resultOutput := result.Workflow.Outputs.decls
 	if !reflect.DeepEqual(resultOutput, expectedOutput) {
 		t.Errorf(
 			"Found workflow output %v, expect %v",
@@ -173,15 +157,9 @@ func TestWorkflowMeta(t *testing.T) {
 	inputPath := "testdata/workflow_meta.wdl"
 	result, err := Antlr4Parse(inputPath)
 	expectedMeta := map[string]*keyValue{
-		"author": newKeyValue(
-			48, 67, mtd, "author", `"Yunhai Luo"`,
-		),
-		"version": newKeyValue(
-			77, 88, mtd, "version", "1.1",
-		),
-		"for": newKeyValue(
-			98, 112, mtd, "for", `"workflow"`,
-		),
+		"author":  newKeyValue(48, 67, "author", `"Yunhai Luo"`),
+		"version": newKeyValue(77, 88, "version", "1.1"),
+		"for":     newKeyValue(98, 112, "for", `"workflow"`),
 	}
 	if err != nil {
 		t.Errorf(
@@ -202,7 +180,7 @@ func TestWorkflowParameterMeta(t *testing.T) {
 	result, err := Antlr4Parse(inputPath)
 	expectedParameterMeta := map[string]*keyValue{
 		"name": newKeyValue(
-			67, 129, pmt, "name", `{help:"A name for workflow input"}`,
+			67, 129, "name", `{help:"A name for workflow input"}`,
 		),
 	}
 	if err != nil {
@@ -222,20 +200,16 @@ func TestWorkflowParameterMeta(t *testing.T) {
 func TestTaskInput(t *testing.T) {
 	inputPath := "testdata/task_input.wdl"
 	result, err := Antlr4Parse(inputPath)
-	expectedInput := []*decl{
-		newDecl(
-			46, 66, ipt, "name", "String", `"World"`,
-		),
-	}
 	if err != nil {
 		t.Errorf(
 			"Found %d errors in %q, expect no errors", len(err), inputPath,
 		)
 	}
-	resultInput := result.Tasks[0].Inputs
-	for _, c := range expectedInput {
-		c.setParent(result.Tasks[0])
-	}
+
+	input1 := newDecl(46, 66, "name", "String", `"World"`)
+	input1.setParent(result.Tasks[0].Inputs)
+	expectedInput := []*decl{input1}
+	resultInput := result.Tasks[0].Inputs.decls
 	if !reflect.DeepEqual(resultInput, expectedInput) {
 		t.Errorf(
 			"Found task input %v, expect %v",
@@ -247,20 +221,16 @@ func TestTaskInput(t *testing.T) {
 func TestTaskPrivateDeclaration(t *testing.T) {
 	inputPath := "testdata/task_private_declaration.wdl"
 	result, err := Antlr4Parse(inputPath)
-	expectedPrivateDecl := []*decl{
-		newDecl(
-			43, 60, dcl, "s", "String", `"Hello"`,
-		),
-	}
 	if err != nil {
 		t.Errorf(
 			"Found %d errors in %q, expect no errors", len(err), inputPath,
 		)
 	}
+
+	prvtDecl1 := newDecl(43, 60, "s", "String", `"Hello"`)
+	prvtDecl1.setParent(result.Tasks[0])
+	expectedPrivateDecl := []*decl{prvtDecl1}
 	resultPrivateDecl := result.Tasks[0].PrvtDecls
-	for _, c := range expectedPrivateDecl {
-		c.setParent(result.Tasks[0])
-	}
 	if !reflect.DeepEqual(resultPrivateDecl, expectedPrivateDecl) {
 		t.Errorf(
 			"Found task private declaration %v, expect %v",
@@ -292,20 +262,16 @@ func TestTaskCommand(t *testing.T) {
 func TestTaskOutput(t *testing.T) {
 	inputPath := "testdata/task_output.wdl"
 	result, err := Antlr4Parse(inputPath)
-	expectedOutput := []*decl{
-		newDecl(
-			47, 73, opt, "output_file", "File", "stdout()",
-		),
-	}
 	if err != nil {
 		t.Errorf(
 			"Found %d errors in %q, expect no errors", len(err), inputPath,
 		)
 	}
-	resultOutput := result.Tasks[0].Outputs
-	for _, c := range expectedOutput {
-		c.setParent(result.Tasks[0])
-	}
+
+	output1 := newDecl(47, 73, "output_file", "File", "stdout()")
+	output1.setParent(result.Tasks[0].Outputs)
+	expectedOutput := []*decl{output1}
+	resultOutput := result.Tasks[0].Outputs.decls
 	if !reflect.DeepEqual(resultOutput, expectedOutput) {
 		t.Errorf(
 			"Found task output %v, expect %v",
@@ -318,9 +284,7 @@ func TestTaskRuntime(t *testing.T) {
 	inputPath := "testdata/task_runtime.wdl"
 	result, err := Antlr4Parse(inputPath)
 	expectedRuntime := map[string]*keyValue{
-		"container": newKeyValue(
-			50, 75, rnt, "container", `"ubuntu:latest"`,
-		),
+		"container": newKeyValue(50, 75, "container", `"ubuntu:latest"`),
 	}
 	if err != nil {
 		t.Errorf(
@@ -340,15 +304,9 @@ func TestTaskMeta(t *testing.T) {
 	inputPath := "testdata/task_meta.wdl"
 	result, err := Antlr4Parse(inputPath)
 	expectedMeta := map[string]*keyValue{
-		"author": newKeyValue(
-			44, 63, mtd, "author", `"Yunhai Luo"`,
-		),
-		"version": newKeyValue(
-			73, 84, mtd, "version", "1.1",
-		),
-		"for": newKeyValue(
-			94, 104, mtd, "for", `"task"`,
-		),
+		"author":  newKeyValue(44, 63, "author", `"Yunhai Luo"`),
+		"version": newKeyValue(73, 84, "version", "1.1"),
+		"for":     newKeyValue(94, 104, "for", `"task"`),
 	}
 	if err != nil {
 		t.Errorf(
@@ -368,9 +326,7 @@ func TestTaskParameterMeta(t *testing.T) {
 	inputPath := "testdata/task_parameter_meta.wdl"
 	result, err := Antlr4Parse(inputPath)
 	expectedParameterMeta := map[string]*keyValue{
-		"name": newKeyValue(
-			63, 122, pmt, "name", `{help:"One name as task input"}`,
-		),
+		"name": newKeyValue(63, 122, "name", `{help:"One name as task input"}`),
 	}
 	if err != nil {
 		t.Errorf(

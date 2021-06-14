@@ -41,7 +41,7 @@ type evaluator interface {
 }
 
 type primitiveLiteral struct {
-	vertex
+	genNode
 	literal string
 	typ     primitive
 }
@@ -50,11 +50,13 @@ func newPrimitiveLiteral(
 	start, end int, lit string, typ primitive,
 ) *primitiveLiteral {
 	p := new(primitiveLiteral)
-	p.vertex = vertex{start: start, end: end, kind: exp}
+	p.genNode = genNode{start: start, end: end}
 	p.literal = lit
 	p.typ = typ
 	return p
 }
+
+func (*primitiveLiteral) getKind() nodeKind { return exp }
 
 func (p primitiveLiteral) eval() (value, error) {
 	v := new(value)
@@ -80,17 +82,19 @@ func (p primitiveLiteral) eval() (value, error) {
 
 // A unaryExpr node represents a unary operation.
 type unaryExpr struct {
-	vertex
+	genNode
 	x     evaluator // operand
 	opSym string
 }
 
 func newUnaryExpr(start, end int, symbol string) *unaryExpr {
 	u := new(unaryExpr)
-	u.vertex = vertex{start: start, end: end, kind: exp}
+	u.genNode = genNode{start: start, end: end}
 	u.opSym = symbol
 	return u
 }
+
+func (*unaryExpr) getKind() nodeKind { return exp }
 
 func (u unaryExpr) eval() (value, error) {
 	x, errX := u.x.eval()
@@ -142,7 +146,7 @@ func (u unaryExpr) getOperand() evaluator {
 
 // A binaryExpr node represents a binary operation.
 type binaryExpr struct {
-	vertex
+	genNode
 	x     evaluator // left operand
 	y     evaluator // right operand
 	opSym string
@@ -150,10 +154,12 @@ type binaryExpr struct {
 
 func newBinaryExpr(start, end int, symbol string) *binaryExpr {
 	b := new(binaryExpr)
-	b.vertex = vertex{start: start, end: end, kind: exp}
+	b.genNode = genNode{start: start, end: end}
 	b.opSym = symbol
 	return b
 }
+
+func (*binaryExpr) getKind() nodeKind { return exp }
 
 func wdlOr(x, y value) (value, error) {
 	xIsBool, yIsBool := x.typ == Boolean, y.typ == Boolean

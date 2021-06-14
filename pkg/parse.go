@@ -100,72 +100,28 @@ func (l *wdlv1_1Listener) ExitImport_alias(ctx *parser.Import_aliasContext) {
 
 }
 
-func (l *wdlv1_1Listener) ExitUnbound_decls(ctx *parser.Unbound_declsContext) {
-	// Build a declaration or input object
-	var kind nodeKind = dcl
-	switch ctx.GetParent().(type) {
-	case *parser.Any_declsContext:
-		// any_decls in the current grammar can only be workflow or task inputs
-		kind = ipt
-	}
-	obj := newDecl(
-		ctx.GetStart().GetStart(),
-		ctx.GetStop().GetStop(),
-		kind,
-		ctx.Identifier().GetText(),
-		ctx.Wdl_type().GetText(),
-		"",
-	)
-	// Put the object into AST
-	switch n := l.currentNode.(type) {
-	case *Workflow:
-		if kind == dcl {
-			log.Fatalf(
-				"Line %d:%d: found a private unbound declaration"+
-					" while in a workflow listener node",
-				ctx.GetStart().GetLine(),
-				ctx.GetStart().GetColumn(),
-			)
-		} else {
-			n.Inputs = append(n.Inputs, obj)
-		}
-	case *Task:
-		if kind == dcl {
-			log.Fatalf(
-				"Line %d:%d: found a private unbound declaration"+
-					" while in a task listener node",
-				ctx.GetStart().GetLine(),
-				ctx.GetStart().GetColumn(),
-			)
-		} else {
-			n.Inputs = append(n.Inputs, obj)
-		}
-	default:
-		log.Fatalf(
-			"Unexpected unbound declaration at line %d:%d"+
-				" while in a %T listener node",
-			ctx.GetStart().GetLine(),
-			ctx.GetStart().GetColumn(),
-			n,
-		)
-	}
-}
-
-func (l *wdlv1_1Listener) EnterBound_decls(ctx *parser.Bound_declsContext) {
-	// Build an input, output or declaration object
-	var kind nodeKind = dcl
-	switch ctx.GetParent().(type) {
-	case *parser.Any_declsContext:
-		// any_decls in the current grammar can only be workflow or task inputs
-		kind = ipt
-	case *parser.Workflow_outputContext, *parser.Task_outputContext:
-		kind = opt
-	}
+func (l *wdlv1_1Listener) EnterUnbound_decls(ctx *parser.Unbound_declsContext) {
 	l.branching(
 		newDecl(
 			ctx.GetStart().GetStart(),
 			ctx.GetStop().GetStop(),
-			kind,
+			ctx.Identifier().GetText(),
+			ctx.Wdl_type().GetText(),
+			"",
+		),
+		true,
+	)
+}
+
+func (l *wdlv1_1Listener) ExitUnbound_decls(ctx *parser.Unbound_declsContext) {
+	l.currentNode = l.currentNode.getParent()
+}
+
+func (l *wdlv1_1Listener) EnterBound_decls(ctx *parser.Bound_declsContext) {
+	l.branching(
+		newDecl(
+			ctx.GetStart().GetStart(),
+			ctx.GetStop().GetStop(),
 			ctx.Identifier().GetText(),
 			ctx.Wdl_type().GetText(),
 			ctx.Expr().GetText(),
@@ -175,7 +131,6 @@ func (l *wdlv1_1Listener) EnterBound_decls(ctx *parser.Bound_declsContext) {
 }
 
 func (l *wdlv1_1Listener) ExitBound_decls(ctx *parser.Bound_declsContext) {
-	parent := l.currentNode.getParent()
 	obj, isDecl := l.currentNode.(*decl)
 	if !isDecl {
 		log.Fatal(
@@ -188,7 +143,6 @@ func (l *wdlv1_1Listener) ExitBound_decls(ctx *parser.Bound_declsContext) {
 			),
 		)
 	}
-	kind := l.currentNode.getKind()
 	var evals []evaluator
 	for _, child := range obj.getChildren() {
 		if e, isExpr := child.(evaluator); isExpr {
@@ -206,34 +160,7 @@ func (l *wdlv1_1Listener) ExitBound_decls(ctx *parser.Bound_declsContext) {
 	if evalCount == 1 {
 		obj.evaluator = evals[0]
 	}
-	// Put the object into AST
-	switch n := parent.(type) {
-	case *Workflow:
-		if kind == dcl {
-			n.PrvtDecls = append(n.PrvtDecls, obj)
-		} else if kind == ipt {
-			n.Inputs = append(n.Inputs, obj)
-		} else {
-			n.Outputs = append(n.Outputs, obj)
-		}
-	case *Task:
-		if kind == dcl {
-			n.PrvtDecls = append(n.PrvtDecls, obj)
-		} else if kind == ipt {
-			n.Inputs = append(n.Inputs, obj)
-		} else {
-			n.Outputs = append(n.Outputs, obj)
-		}
-	default:
-		log.Fatalf(
-			"Unexpected bound declaration at line %d:%d"+
-				" while in a %T listener node",
-			ctx.GetStart().GetLine(),
-			ctx.GetStart().GetColumn(),
-			n,
-		)
-	}
-	l.currentNode = parent
+	l.currentNode = l.currentNode.getParent()
 }
 
 func (l *wdlv1_1Listener) EnterMeta_kv(ctx *parser.Meta_kvContext) {
@@ -256,7 +183,6 @@ func (l *wdlv1_1Listener) EnterMeta_kv(ctx *parser.Meta_kvContext) {
 	obj := newKeyValue(
 		ctx.GetStart().GetStart(),
 		ctx.GetStop().GetStop(),
-		kind,
 		ctx.MetaIdentifier().GetText(),
 		ctx.Meta_value().GetText(),
 	)
@@ -310,6 +236,12 @@ func (l *wdlv1_1Listener) ExitWorkflow(ctx *parser.WorkflowContext) {
 			),
 		)
 	}
+	// Collect and organize private declarations
+	for _, child := range workflow.getChildren() {
+		if d, isDecl := child.(*decl); isDecl {
+			workflow.PrvtDecls = append(workflow.PrvtDecls, d)
+		}
+	}
 	if l.wdl.Workflow != nil {
 		log.Fatalf(
 			"Found a \"%v\" workflow while a \"%v\" workflow already exists;"+
@@ -321,6 +253,47 @@ func (l *wdlv1_1Listener) ExitWorkflow(ctx *parser.WorkflowContext) {
 	l.wdl.Workflow = workflow
 	l.currentNode = l.wdl
 }
+
+func (l *wdlv1_1Listener) EnterWorkflow_input(
+	ctx *parser.Workflow_inputContext,
+) {
+	l.branching(
+		newInputDecls(ctx.GetStart().GetLine(), ctx.GetStart().GetColumn()),
+		true,
+	)
+}
+
+func (l *wdlv1_1Listener) ExitWorkflow_input(
+	ctx *parser.Workflow_inputContext,
+) {
+	inputs, currentIsInputDecls := l.currentNode.(*inputDecls)
+	if !currentIsInputDecls {
+		log.Fatal(
+			newMismatchContextError(
+				ctx.GetStart().GetLine(),
+				ctx.GetStart().GetColumn(),
+				"workflow input",
+				"inputDecls",
+				l.currentNode,
+			),
+		)
+	}
+	workflow, parentIsWorkflow := l.currentNode.getParent().(*Workflow)
+	if !parentIsWorkflow {
+		log.Fatal(
+			newMismatchContextError(
+				ctx.GetStart().GetLine(),
+				ctx.GetStart().GetColumn(),
+				"workflow input",
+				"workflow parent",
+				l.currentNode.getParent(),
+			),
+		)
+	}
+	workflow.Inputs = inputs
+	l.currentNode = workflow
+}
+
 func (l *wdlv1_1Listener) EnterCall(ctx *parser.CallContext) {
 	l.branching(
 		NewCall(
@@ -330,6 +303,35 @@ func (l *wdlv1_1Listener) EnterCall(ctx *parser.CallContext) {
 		),
 		true,
 	)
+}
+
+func (l *wdlv1_1Listener) ExitCall(ctx *parser.CallContext) {
+	call, currentIsCall := l.currentNode.(*Call)
+	if !currentIsCall {
+		log.Fatal(
+			newMismatchContextError(
+				ctx.GetStart().GetLine(),
+				ctx.GetStart().GetColumn(),
+				"call",
+				"call",
+				l.currentNode,
+			),
+		)
+	}
+	workflow, parentIsWorkflow := l.currentNode.getParent().(*Workflow)
+	if !parentIsWorkflow {
+		log.Fatal(
+			newMismatchContextError(
+				ctx.GetStart().GetLine(),
+				ctx.GetStart().GetColumn(),
+				"call",
+				"workflow parent",
+				l.currentNode.getParent(),
+			),
+		)
+	}
+	workflow.Calls = append(workflow.Calls, call)
+	l.currentNode = workflow
 }
 
 func (l *wdlv1_1Listener) ExitCall_name(ctx *parser.Call_nameContext) {
@@ -398,22 +400,32 @@ func (l *wdlv1_1Listener) ExitCall_input(ctx *parser.Call_inputContext) {
 		newKeyValue(
 			ctx.GetStart().GetStart(),
 			ctx.GetStop().GetStop(),
-			ipt,
 			ctx.Identifier().GetText(),
 			ctx.Expr().GetText(),
 		),
 	)
 }
 
-func (l *wdlv1_1Listener) ExitCall(ctx *parser.CallContext) {
-	call, currentIsCall := l.currentNode.(*Call)
-	if !currentIsCall {
+func (l *wdlv1_1Listener) EnterWorkflow_output(
+	ctx *parser.Workflow_outputContext,
+) {
+	l.branching(
+		newOutputDecls(ctx.GetStart().GetLine(), ctx.GetStart().GetColumn()),
+		true,
+	)
+}
+
+func (l *wdlv1_1Listener) ExitWorkflow_output(
+	ctx *parser.Workflow_outputContext,
+) {
+	outputs, currentIsOutputDecls := l.currentNode.(*outputDecls)
+	if !currentIsOutputDecls {
 		log.Fatal(
 			newMismatchContextError(
 				ctx.GetStart().GetLine(),
 				ctx.GetStart().GetColumn(),
-				"call",
-				"call",
+				"workflow output",
+				"outputDecls",
 				l.currentNode,
 			),
 		)
@@ -424,13 +436,13 @@ func (l *wdlv1_1Listener) ExitCall(ctx *parser.CallContext) {
 			newMismatchContextError(
 				ctx.GetStart().GetLine(),
 				ctx.GetStart().GetColumn(),
-				"call",
+				"workflow output",
 				"workflow parent",
 				l.currentNode.getParent(),
 			),
 		)
 	}
-	workflow.Calls = append(workflow.Calls, call)
+	workflow.Outputs = outputs
 	l.currentNode = workflow
 }
 
@@ -443,6 +455,70 @@ func (l *wdlv1_1Listener) EnterTask(ctx *parser.TaskContext) {
 		),
 		true,
 	)
+}
+
+func (l *wdlv1_1Listener) ExitTask(ctx *parser.TaskContext) {
+	task, isTask := l.currentNode.(*Task)
+	if !isTask {
+		log.Fatal(
+			newMismatchContextError(
+				ctx.GetStart().GetLine(),
+				ctx.GetStart().GetColumn(),
+				"task",
+				"task",
+				l.currentNode,
+			),
+		)
+	}
+	// Collect and organize private declarations
+	for _, child := range task.getChildren() {
+		if d, isDecl := child.(*decl); isDecl {
+			task.PrvtDecls = append(task.PrvtDecls, d)
+		}
+	}
+	// TODO: check task name is unique in a WDL document
+	l.wdl.Tasks = append(l.wdl.Tasks, task)
+	l.currentNode = l.wdl
+}
+
+func (l *wdlv1_1Listener) EnterTask_input(
+	ctx *parser.Task_inputContext,
+) {
+	l.branching(
+		newInputDecls(ctx.GetStart().GetLine(), ctx.GetStart().GetColumn()),
+		true,
+	)
+}
+
+func (l *wdlv1_1Listener) ExitTask_input(
+	ctx *parser.Task_inputContext,
+) {
+	inputs, currentIsInputDecls := l.currentNode.(*inputDecls)
+	if !currentIsInputDecls {
+		log.Fatal(
+			newMismatchContextError(
+				ctx.GetStart().GetLine(),
+				ctx.GetStart().GetColumn(),
+				"task input",
+				"inputDecls",
+				l.currentNode,
+			),
+		)
+	}
+	task, parentIsTask := l.currentNode.getParent().(*Task)
+	if !parentIsTask {
+		log.Fatal(
+			newMismatchContextError(
+				ctx.GetStart().GetLine(),
+				ctx.GetStart().GetColumn(),
+				"task input",
+				"task parent",
+				l.currentNode.getParent(),
+			),
+		)
+	}
+	task.Inputs = inputs
+	l.currentNode = task
 }
 
 func (l *wdlv1_1Listener) EnterTask_command(ctx *parser.Task_commandContext) {
@@ -465,6 +541,46 @@ func (l *wdlv1_1Listener) ExitTask_command_expr_with_string(
 	}
 }
 
+func (l *wdlv1_1Listener) EnterTask_output(
+	ctx *parser.Task_outputContext,
+) {
+	l.branching(
+		newOutputDecls(ctx.GetStart().GetLine(), ctx.GetStart().GetColumn()),
+		true,
+	)
+}
+
+func (l *wdlv1_1Listener) ExitTask_output(
+	ctx *parser.Task_outputContext,
+) {
+	outputs, currentIsOutputDecls := l.currentNode.(*outputDecls)
+	if !currentIsOutputDecls {
+		log.Fatal(
+			newMismatchContextError(
+				ctx.GetStart().GetLine(),
+				ctx.GetStart().GetColumn(),
+				"task output",
+				"outputDecls",
+				l.currentNode,
+			),
+		)
+	}
+	task, parentIsTask := l.currentNode.getParent().(*Task)
+	if !parentIsTask {
+		log.Fatal(
+			newMismatchContextError(
+				ctx.GetStart().GetLine(),
+				ctx.GetStart().GetColumn(),
+				"task output",
+				"task parent",
+				l.currentNode.getParent(),
+			),
+		)
+	}
+	task.Outputs = outputs
+	l.currentNode = task
+}
+
 func (l *wdlv1_1Listener) ExitTask_runtime_kv(
 	ctx *parser.Task_runtime_kvContext,
 ) {
@@ -472,7 +588,6 @@ func (l *wdlv1_1Listener) ExitTask_runtime_kv(
 		t.Runtime[ctx.Identifier().GetText()] = newKeyValue(
 			ctx.GetStart().GetStart(),
 			ctx.GetStop().GetStop(),
-			rnt,
 			ctx.Identifier().GetText(),
 			ctx.Expr().GetText(),
 		)
@@ -487,24 +602,6 @@ func (l *wdlv1_1Listener) ExitTask_runtime_kv(
 			),
 		)
 	}
-}
-
-func (l *wdlv1_1Listener) ExitTask(ctx *parser.TaskContext) {
-	task, isTask := l.currentNode.(*Task)
-	if !isTask {
-		log.Fatal(
-			newMismatchContextError(
-				ctx.GetStart().GetLine(),
-				ctx.GetStart().GetColumn(),
-				"task",
-				"task",
-				l.currentNode,
-			),
-		)
-	}
-	// TODO: check task name is unique in a WDL document
-	l.wdl.Tasks = append(l.wdl.Tasks, task)
-	l.currentNode = l.wdl
 }
 
 // Antlr4Parse parse a WDL document into WDL
