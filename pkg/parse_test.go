@@ -155,18 +155,18 @@ func TestWorkflowOutput(t *testing.T) {
 
 func TestWorkflowMeta(t *testing.T) {
 	inputPath := "testdata/workflow_meta.wdl"
-	result, err := Antlr4Parse(inputPath)
-	expectedMeta := map[string]*keyValue{
-		"author":  newKeyValue(48, 67, "author", `"Yunhai Luo"`),
-		"version": newKeyValue(77, 88, "version", "1.1"),
-		"for":     newKeyValue(98, 112, "for", `"workflow"`),
+	expectedMeta := map[string]string{
+		"author":  `"Yunhai Luo"`,
+		"version": "1.1",
+		"for":     `"workflow"`,
 	}
+	result, err := Antlr4Parse(inputPath)
 	if err != nil {
 		t.Errorf(
 			"Found %d errors in %q, expect no errors", len(err), inputPath,
 		)
 	}
-	resultMeta := result.Workflow.Meta
+	resultMeta := result.Workflow.Meta.keyValues
 	if !reflect.DeepEqual(resultMeta, expectedMeta) {
 		t.Errorf(
 			"Found workflow metadata %v, expect %v",
@@ -177,18 +177,16 @@ func TestWorkflowMeta(t *testing.T) {
 
 func TestWorkflowParameterMeta(t *testing.T) {
 	inputPath := "testdata/workflow_parameter_meta.wdl"
-	result, err := Antlr4Parse(inputPath)
-	expectedParameterMeta := map[string]*keyValue{
-		"name": newKeyValue(
-			67, 129, "name", `{help:"A name for workflow input"}`,
-		),
+	expectedParameterMeta := map[string]string{
+		"name": `{help:"A name for workflow input"}`,
 	}
+	result, err := Antlr4Parse(inputPath)
 	if err != nil {
 		t.Errorf(
 			"Found %d errors in %q, expect no errors", len(err), inputPath,
 		)
 	}
-	resultParameterMeta := result.Workflow.ParameterMeta
+	resultParameterMeta := result.Workflow.ParameterMeta.keyValues
 	if !reflect.DeepEqual(resultParameterMeta, expectedParameterMeta) {
 		t.Errorf(
 			"Found workflow parameter metadata %v, expect %v",
@@ -282,16 +280,16 @@ func TestTaskOutput(t *testing.T) {
 
 func TestTaskRuntime(t *testing.T) {
 	inputPath := "testdata/task_runtime.wdl"
-	result, err := Antlr4Parse(inputPath)
-	expectedRuntime := map[string]*keyValue{
-		"container": newKeyValue(50, 75, "container", `"ubuntu:latest"`),
+	expectedRuntime := map[string]string{
+		"container": `"ubuntu:latest"`,
 	}
+	result, err := Antlr4Parse(inputPath)
 	if err != nil {
 		t.Errorf(
 			"Found %d errors in %q, expect no errors", len(err), inputPath,
 		)
 	}
-	resultRuntime := result.Tasks[0].Runtime
+	resultRuntime := result.Tasks[0].Runtime.keyValues
 	if !reflect.DeepEqual(resultRuntime, expectedRuntime) {
 		t.Errorf(
 			"Found task runtime %v, expect %v",
@@ -302,18 +300,18 @@ func TestTaskRuntime(t *testing.T) {
 
 func TestTaskMeta(t *testing.T) {
 	inputPath := "testdata/task_meta.wdl"
-	result, err := Antlr4Parse(inputPath)
-	expectedMeta := map[string]*keyValue{
-		"author":  newKeyValue(44, 63, "author", `"Yunhai Luo"`),
-		"version": newKeyValue(73, 84, "version", "1.1"),
-		"for":     newKeyValue(94, 104, "for", `"task"`),
+	expectedMeta := map[string]string{
+		"author":  `"Yunhai Luo"`,
+		"version": "1.1",
+		"for":     `"task"`,
 	}
+	result, err := Antlr4Parse(inputPath)
 	if err != nil {
 		t.Errorf(
 			"Found %d errors in %q, expect no errors", len(err), inputPath,
 		)
 	}
-	resultMeta := result.Tasks[0].Meta
+	resultMeta := result.Tasks[0].Meta.keyValues
 	if !reflect.DeepEqual(resultMeta, expectedMeta) {
 		t.Errorf(
 			"Found task metadata %v, expect %v",
@@ -324,16 +322,16 @@ func TestTaskMeta(t *testing.T) {
 
 func TestTaskParameterMeta(t *testing.T) {
 	inputPath := "testdata/task_parameter_meta.wdl"
-	result, err := Antlr4Parse(inputPath)
-	expectedParameterMeta := map[string]*keyValue{
-		"name": newKeyValue(63, 122, "name", `{help:"One name as task input"}`),
+	expectedParameterMeta := map[string]string{
+		"name": `{help:"One name as task input"}`,
 	}
+	result, err := Antlr4Parse(inputPath)
 	if err != nil {
 		t.Errorf(
 			"Found %d errors in %q, expect no errors", len(err), inputPath,
 		)
 	}
-	resultParameterMeta := result.Tasks[0].ParameterMeta
+	resultParameterMeta := result.Tasks[0].ParameterMeta.keyValues
 	if !reflect.DeepEqual(resultParameterMeta, expectedParameterMeta) {
 		t.Errorf(
 			"Found task parameter metadata %v, expect %v",

@@ -18,6 +18,7 @@ const (
 	tsk                 // task
 	ipt                 // input
 	opt                 // output
+	rnt                 // task runtime
 	mtd                 // metadata
 	pmt                 // parameter metadata
 	dcl                 // general declaration
@@ -154,19 +155,18 @@ func (*importSpec) getKind() nodeKind { return imp }
 // A Workflow represents one parsed workflow.
 type Workflow struct {
 	object
-	Inputs              *inputDecls
-	PrvtDecls           []*decl
-	Outputs             *outputDecls
-	Calls               []*Call
-	Meta, ParameterMeta map[string]*keyValue
-	Elements            []string
+	Inputs        *inputDecls
+	PrvtDecls     []*decl
+	Outputs       *outputDecls
+	Calls         []*Call
+	Meta          *metaSpec
+	ParameterMeta *parameterMetaSpec
+	Elements      []string
 }
 
 func NewWorkflow(start, end int, name string) *Workflow {
 	workflow := new(Workflow)
 	workflow.object = *newObject(start, end, name)
-	workflow.Meta = make(map[string]*keyValue)
-	workflow.ParameterMeta = make(map[string]*keyValue)
 	return workflow
 }
 
@@ -259,23 +259,64 @@ func (v *outputDecls) addChild(n node) {
 	v.decls = append(v.decls, d)
 }
 
+type metaSpec struct {
+	genNode
+	keyValues map[string]string
+}
+
+func newMetaSpecs(start, end int) *metaSpec {
+	ms := new(metaSpec)
+	ms.genNode = genNode{start, end, nil, []node{}}
+	ms.keyValues = map[string]string{}
+	return ms
+}
+
+func (*metaSpec) getKind() nodeKind { return mtd }
+
+type parameterMetaSpec struct {
+	genNode
+	keyValues map[string]string
+}
+
+func newParameterMetaSpecs(start, end int) *parameterMetaSpec {
+	pms := new(parameterMetaSpec)
+	pms.genNode = genNode{start, end, nil, []node{}}
+	pms.keyValues = map[string]string{}
+	return pms
+}
+
+func (*parameterMetaSpec) getKind() nodeKind { return pmt }
+
 // A Task represents one parsed task.
 type Task struct {
 	object
-	Inputs                       *inputDecls
-	PrvtDecls                    []*decl
-	Outputs                      *outputDecls
-	Command                      []string
-	Runtime, Meta, ParameterMeta map[string]*keyValue
+	Inputs        *inputDecls
+	PrvtDecls     []*decl
+	Outputs       *outputDecls
+	Command       []string
+	Runtime       *runtimeSpec
+	Meta          *metaSpec
+	ParameterMeta *parameterMetaSpec
 }
 
 func NewTask(start, end int, name string) *Task {
 	task := new(Task)
 	task.object = *newObject(start, end, name)
-	task.Runtime = make(map[string]*keyValue)
-	task.Meta = make(map[string]*keyValue)
-	task.ParameterMeta = make(map[string]*keyValue)
 	return task
 }
 
 func (*Task) getKind() nodeKind { return tsk }
+
+type runtimeSpec struct {
+	genNode
+	keyValues map[string]string
+}
+
+func newRuntimeSpecs(start, end int) *runtimeSpec {
+	rs := new(runtimeSpec)
+	rs.genNode = genNode{start, end, nil, []node{}}
+	rs.keyValues = map[string]string{}
+	return rs
+}
+
+func (*runtimeSpec) getKind() nodeKind { return rnt }

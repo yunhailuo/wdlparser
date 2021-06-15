@@ -163,54 +163,6 @@ func (l *wdlv1_1Listener) ExitBound_decls(ctx *parser.Bound_declsContext) {
 	l.currentNode = l.currentNode.getParent()
 }
 
-func (l *wdlv1_1Listener) EnterMeta_kv(ctx *parser.Meta_kvContext) {
-	// Build a metadata or parameter metadata object
-	var kind nodeKind
-	switch c := ctx.GetParent().(type) {
-	case *parser.MetaContext:
-		kind = mtd
-	case *parser.Parameter_metaContext:
-		kind = pmt
-	default:
-		log.Fatalf(
-			"Unexpected metadata declaration at line %d:%d"+
-				" while in a %T parser context",
-			ctx.GetStart().GetLine(),
-			ctx.GetStart().GetColumn(),
-			c,
-		)
-	}
-	obj := newKeyValue(
-		ctx.GetStart().GetStart(),
-		ctx.GetStop().GetStop(),
-		ctx.MetaIdentifier().GetText(),
-		ctx.Meta_value().GetText(),
-	)
-	// Put the object into AST
-	switch n := l.currentNode.(type) {
-	case *Workflow:
-		if kind == pmt {
-			n.ParameterMeta[obj.key] = obj
-		} else {
-			n.Meta[obj.key] = obj
-		}
-	case *Task:
-		if kind == pmt {
-			n.ParameterMeta[obj.key] = obj
-		} else {
-			n.Meta[obj.key] = obj
-		}
-	default:
-		log.Fatalf(
-			"Unexpected metadata declaration at line %d:%d"+
-				" while in a %T listener node",
-			ctx.GetStart().GetLine(),
-			ctx.GetStart().GetColumn(),
-			n,
-		)
-	}
-}
-
 func (l *wdlv1_1Listener) EnterWorkflow(ctx *parser.WorkflowContext) {
 	workflow := NewWorkflow(
 		ctx.GetStart().GetStart(),
@@ -446,6 +398,111 @@ func (l *wdlv1_1Listener) ExitWorkflow_output(
 	l.currentNode = workflow
 }
 
+func (l *wdlv1_1Listener) EnterMeta(ctx *parser.MetaContext) {
+	l.branching(
+		newMetaSpecs(ctx.GetStart().GetLine(), ctx.GetStart().GetColumn()),
+		true,
+	)
+}
+
+func (l *wdlv1_1Listener) ExitMeta(ctx *parser.MetaContext) {
+	m, isMeta := l.currentNode.(*metaSpec)
+	if !isMeta {
+		log.Fatal(
+			newMismatchContextError(
+				ctx.GetStart().GetLine(),
+				ctx.GetStart().GetColumn(),
+				"metadata",
+				"metaSpec",
+				l.currentNode,
+			),
+		)
+	}
+	parent := l.currentNode.getParent()
+	switch n := parent.(type) {
+	case *Workflow:
+		n.Meta = m
+	case *Task:
+		n.Meta = m
+	default:
+		log.Fatal(
+			newMismatchContextError(
+				ctx.GetStart().GetLine(),
+				ctx.GetStart().GetColumn(),
+				"metadata",
+				"workflow or task parent",
+				l.currentNode.getParent(),
+			),
+		)
+	}
+	l.currentNode = parent
+}
+
+func (l *wdlv1_1Listener) EnterParameter_meta(
+	ctx *parser.Parameter_metaContext,
+) {
+	l.branching(
+		newParameterMetaSpecs(
+			ctx.GetStart().GetLine(), ctx.GetStart().GetColumn(),
+		),
+		true,
+	)
+}
+
+func (l *wdlv1_1Listener) ExitParameter_meta(
+	ctx *parser.Parameter_metaContext,
+) {
+	pm, isParameterMeta := l.currentNode.(*parameterMetaSpec)
+	if !isParameterMeta {
+		log.Fatal(
+			newMismatchContextError(
+				ctx.GetStart().GetLine(),
+				ctx.GetStart().GetColumn(),
+				"parameter metadata",
+				"parameterMetaSpec",
+				l.currentNode,
+			),
+		)
+	}
+	parent := l.currentNode.getParent()
+	switch n := parent.(type) {
+	case *Workflow:
+		n.ParameterMeta = pm
+	case *Task:
+		n.ParameterMeta = pm
+	default:
+		log.Fatal(
+			newMismatchContextError(
+				ctx.GetStart().GetLine(),
+				ctx.GetStart().GetColumn(),
+				"parameter metadata",
+				"workflow or task parent",
+				l.currentNode.getParent(),
+			),
+		)
+	}
+	l.currentNode = parent
+}
+
+func (l *wdlv1_1Listener) EnterMeta_kv(ctx *parser.Meta_kvContext) {
+	switch n := l.currentNode.(type) {
+	case *metaSpec:
+		n.keyValues[ctx.MetaIdentifier().GetText()] = ctx.Meta_value().GetText()
+	case *parameterMetaSpec:
+		n.keyValues[ctx.MetaIdentifier().GetText()] = ctx.Meta_value().GetText()
+	default:
+		log.Fatal(
+			newMismatchContextError(
+				ctx.GetStart().GetLine(),
+				ctx.GetStart().GetColumn(),
+				"metadata key/value pairs",
+				"metaSpec or parameterMetaSpec",
+				l.currentNode.getParent(),
+			),
+		)
+	}
+}
+
 func (l *wdlv1_1Listener) EnterTask(ctx *parser.TaskContext) {
 	l.branching(
 		NewTask(
@@ -581,23 +638,54 @@ func (l *wdlv1_1Listener) ExitTask_output(
 	l.currentNode = task
 }
 
-func (l *wdlv1_1Listener) ExitTask_runtime_kv(
-	ctx *parser.Task_runtime_kvContext,
-) {
-	if t, isTask := l.currentNode.(*Task); isTask {
-		t.Runtime[ctx.Identifier().GetText()] = newKeyValue(
-			ctx.GetStart().GetStart(),
-			ctx.GetStop().GetStop(),
-			ctx.Identifier().GetText(),
-			ctx.Expr().GetText(),
-		)
-	} else {
+func (l *wdlv1_1Listener) EnterTask_runtime(ctx *parser.Task_runtimeContext) {
+	l.branching(
+		newRuntimeSpecs(ctx.GetStart().GetLine(), ctx.GetStart().GetColumn()),
+		true,
+	)
+}
+
+func (l *wdlv1_1Listener) ExitTask_runtime(ctx *parser.Task_runtimeContext) {
+	r, isRuntime := l.currentNode.(*runtimeSpec)
+	if !isRuntime {
 		log.Fatal(
 			newMismatchContextError(
 				ctx.GetStart().GetLine(),
 				ctx.GetStart().GetColumn(),
 				"task runtime",
-				"task",
+				"runtimeSpec",
+				l.currentNode,
+			),
+		)
+	}
+	parent, isTask := l.currentNode.getParent().(*Task)
+	if !isTask {
+		log.Fatal(
+			newMismatchContextError(
+				ctx.GetStart().GetLine(),
+				ctx.GetStart().GetColumn(),
+				"task runtime",
+				"task parent",
+				l.currentNode.getParent(),
+			),
+		)
+	}
+	parent.Runtime = r
+	l.currentNode = parent
+}
+
+func (l *wdlv1_1Listener) ExitTask_runtime_kv(
+	ctx *parser.Task_runtime_kvContext,
+) {
+	if r, isRuntime := l.currentNode.(*runtimeSpec); isRuntime {
+		r.keyValues[ctx.Identifier().GetText()] = ctx.Expr().GetText()
+	} else {
+		log.Fatal(
+			newMismatchContextError(
+				ctx.GetStart().GetLine(),
+				ctx.GetStart().GetColumn(),
+				"task runtime key/value pairs",
+				"runtimeSpec",
 				l.currentNode,
 			),
 		)
