@@ -46,6 +46,10 @@ type genNode struct {
 	children   []node
 }
 
+func newGenNode(start, end int) *genNode {
+	return &genNode{start: start, end: end}
+}
+
 func (v *genNode) getStart() int         { return v.start }
 func (v *genNode) getEnd() int           { return v.end }
 func (*genNode) getKind() nodeKind       { return par }
@@ -64,15 +68,15 @@ func (v *genNode) addChild(n node) {
 	v.children = append(v.children, n)
 }
 
-// An object represents a named language entity such as input, private
+// An namedNode represents a named language entity such as input, private
 // declaration, output, runtime metadata or parameter metadata.
-type object struct {
+type namedNode struct {
 	genNode     // Implement node interface
 	name, alias string
 }
 
-func newObject(start, end int, name string) *object {
-	return &object{genNode{start: start, end: end}, name, ""}
+func newNamedNode(start, end int, name string) *namedNode {
+	return &namedNode{genNode{start: start, end: end}, name, ""}
 }
 
 // An decl represents a declaration.
@@ -81,10 +85,10 @@ type (
 	declValue string
 	decl      struct {
 		genNode
-		identifier string
-		evaluator  evaluator
-		typ        declType
-		value      declValue
+		identifier     string
+		initialization *expr
+		typ            declType
+		value          declValue
 	}
 )
 
@@ -112,7 +116,7 @@ func newKeyValue(start, end int, key, value string) *keyValue {
 
 // A WDL represents a parsed WDL document.
 type WDL struct {
-	object
+	namedNode
 	Path     string
 	Version  string
 	Imports  []*importSpec
@@ -124,7 +128,7 @@ type WDL struct {
 func NewWDL(wdlPath string, size int) *WDL {
 	wdl := new(WDL)
 	wdl.Path = wdlPath
-	wdl.object = *newObject(
+	wdl.namedNode = *newNamedNode(
 		0,
 		size-1,
 		strings.TrimSuffix(path.Base(wdlPath), ".wdl"),
@@ -135,7 +139,7 @@ func NewWDL(wdlPath string, size int) *WDL {
 func (*WDL) getKind() nodeKind { return doc }
 
 type importSpec struct {
-	object
+	namedNode
 	uri           string
 	importAliases map[string]string // key is original name and value is alias
 }
@@ -143,7 +147,7 @@ type importSpec struct {
 func newImportSpec(start, end int, uri string) *importSpec {
 	is := new(importSpec)
 	is.uri = uri
-	is.object = *newObject(
+	is.namedNode = *newNamedNode(
 		start, end, strings.TrimSuffix(path.Base(uri), ".wdl"),
 	)
 	is.importAliases = map[string]string{}
@@ -154,7 +158,7 @@ func (*importSpec) getKind() nodeKind { return imp }
 
 // A Workflow represents one parsed workflow.
 type Workflow struct {
-	object
+	namedNode
 	Inputs        *inputDecls
 	PrvtDecls     []*decl
 	Outputs       *outputDecls
@@ -166,7 +170,7 @@ type Workflow struct {
 
 func NewWorkflow(start, end int, name string) *Workflow {
 	workflow := new(Workflow)
-	workflow.object = *newObject(start, end, name)
+	workflow.namedNode = *newNamedNode(start, end, name)
 	return workflow
 }
 
@@ -210,14 +214,14 @@ func (v *inputDecls) addChild(n node) {
 
 // A Call represents one parsed call.
 type Call struct {
-	object
+	namedNode
 	After  string
 	Inputs []*keyValue
 }
 
 func NewCall(start, end int, name string) *Call {
 	call := new(Call)
-	call.object = *newObject(start, end, name)
+	call.namedNode = *newNamedNode(start, end, name)
 	return call
 }
 
@@ -289,7 +293,7 @@ func (*parameterMetaSpec) getKind() nodeKind { return pmt }
 
 // A Task represents one parsed task.
 type Task struct {
-	object
+	namedNode
 	Inputs        *inputDecls
 	PrvtDecls     []*decl
 	Outputs       *outputDecls
@@ -301,7 +305,7 @@ type Task struct {
 
 func NewTask(start, end int, name string) *Task {
 	task := new(Task)
-	task.object = *newObject(start, end, name)
+	task.namedNode = *newNamedNode(start, end, name)
 	return task
 }
 

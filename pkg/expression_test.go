@@ -1,117 +1,75 @@
 package wdlparser
 
 import (
+	"reflect"
 	"testing"
 )
 
-func TestBoolLiteralOrAndNot(t *testing.T) {
-	testCases := []struct {
-		wdl  string
-		want bool
-	}{
-		{"version 1.1 workflow L {input{Boolean t=true || true}}", true},
-		{"version 1.1 workflow L {input{Boolean t=true || false}}", true},
-		{"version 1.1 workflow L {input{Boolean t=false || true}}", true},
-		{"version 1.1 workflow L {input{Boolean t=false || false}}", false},
-		{"version 1.1 workflow L {input{Boolean t=true && true}}", true},
-		{"version 1.1 workflow L {input{Boolean t=true && false}}", false},
-		{"version 1.1 workflow L {input{Boolean t=false && true}}", false},
-		{"version 1.1 workflow L {input{Boolean t=false && false}}", false},
-		{"version 1.1 workflow L {input{Boolean t=!true}}", false},
-		{"version 1.1 workflow L {input{Boolean t=!false}}", true},
-	}
-	for _, tc := range testCases {
-		result, err := Antlr4Parse(tc.wdl)
-		if err != nil {
-			t.Errorf(
-				"Found %d errors in %q, expect no errors", len(err), tc.wdl,
-			)
-		}
-		v, evalErr := result.Workflow.Inputs.decls[0].evaluator.eval()
-		if evalErr != nil {
-			t.Errorf("Fail to evaluate %v: %w", tc.wdl, evalErr)
-		}
-		if v.govalue != tc.want {
-			t.Errorf("Evaluate %v as %v, expect %t", tc.wdl, v.govalue, tc.want)
-		}
-	}
-}
-
-func TestComparison(t *testing.T) {
-	testCases := []struct {
-		wdl  string
-		want bool
-	}{
-		// Less than, less than or equal to
-		{"version 1.1 workflow L {input{Boolean t=1<2}}", true},
-		{"version 1.1 workflow L {input{Boolean t=1.0<=2.0}}", true},
-		{"version 1.1 workflow L {input{Boolean t=3.0<3}}", false},
-		{"version 1.1 workflow L {input{Boolean t=3<=3.0}}", true},
-		{"version 1.1 workflow L {input{Boolean t=5.0<4}}", false},
-		{"version 1.1 workflow L {input{Boolean t=5<=4}}", false},
-		{"version 1.1 workflow L {input{Boolean t=6.0<10.0}}", true},
-		{"version 1.1 workflow L {input{Boolean t=6.0<=10}}", true},
-
-		// Greater than, greater than or equal to
-		{"version 1.1 workflow L {input{Boolean t=1>2}}", false},
-		{"version 1.1 workflow L {input{Boolean t=1.0>=2.0}}", false},
-		{"version 1.1 workflow L {input{Boolean t=3.0>3}}", false},
-		{"version 1.1 workflow L {input{Boolean t=3>=3.0}}", true},
-		{"version 1.1 workflow L {input{Boolean t=5.0>4}}", true},
-		{"version 1.1 workflow L {input{Boolean t=5>=4}}", true},
-		{"version 1.1 workflow L {input{Boolean t=6.0>10.0}}", false},
-		{"version 1.1 workflow L {input{Boolean t=6.0>=10}}", false},
-	}
-	for _, tc := range testCases {
-		result, err := Antlr4Parse(tc.wdl)
-		if err != nil {
-			t.Errorf(
-				"Found %d errors in %q, expect no errors", len(err), tc.wdl,
-			)
-		}
-		v, evalErr := result.Workflow.Inputs.decls[0].evaluator.eval()
-		if evalErr != nil {
-			t.Errorf("Fail to evaluate %v: %w", tc.wdl, evalErr)
-		}
-		if v.govalue != tc.want {
-			t.Errorf("Evaluate %v as %v, expect %v", tc.wdl, v.govalue, tc.want)
-		}
-	}
-}
-
-func TestArithmetic(t *testing.T) {
+func TestSinglePrimitiveExpression(t *testing.T) {
 	testCases := []struct {
 		wdl  string
 		want interface{}
 	}{
-		{"version 1.1 workflow L {input{Int t=-2}}", int64(-2)},
-		{"version 1.1 workflow L {input{Int t=+2}}", int64(2)},
-		{"version 1.1 workflow L {input{Float t=-2.0}}", -2.0},
-		{"version 1.1 workflow L {input{Float t=+2.0}}", 2.0},
-
-		// Substraction
-		{"version 1.1 workflow L {input{Int t=3-1}}", int64(2)},
-		{"version 1.1 workflow L {input{Float t=5.0-4.0}}", 1.0},
-		{"version 1.1 workflow L {input{Float t=10-6.0}}", 4.0},
-		{"version 1.1 workflow L {input{Float t=0.0-2}}", -2.0},
-
-		// Multiplication
-		{"version 1.1 workflow L {input{Int t=2*3}}", int64(6)},
-		{"version 1.1 workflow L {input{Float t=5.0*4.0}}", 20.0},
-		{"version 1.1 workflow L {input{Float t=7*6.0}}", 42.0},
-		{"version 1.1 workflow L {input{Float t=8.0*9}}", 72.0},
-
-		// Division
-		{"version 1.1 workflow L {input{Int t=4/2}}", int64(2)},
-		{"version 1.1 workflow L {input{Float t=6.0/3.0}}", 2.0},
-		{"version 1.1 workflow L {input{Float t=8/2.0}}", 4.0},
-		{"version 1.1 workflow L {input{Float t=2.0/10}}", 0.2},
-
-		// Modulo
-		{"version 1.1 workflow L {input{Int t=3%2}}", int64(1)},
-		{"version 1.1 workflow L {input{Float t=5.2%3.0}}", 2.2},
-		{"version 1.1 workflow L {input{Float t=10%6.3}}", 3.7},
-		{"version 1.1 workflow L {input{Float t=0.0%2}}", 0.0},
+		{
+			"version 1.1 workflow Test {input{Int t=-3}}",
+			[]interface{}{value{Int, int64(3)}, wdlNeg},
+		},
+		{
+			"version 1.1 workflow Test {input{Boolean t=!true}}",
+			[]interface{}{value{Boolean, true}, wdlNot},
+		},
+		{
+			"version 1.1 workflow Test {input{Int t=3.0/4.0}}",
+			[]interface{}{
+				value{Float, float64(3)}, value{Float, float64(4)}, wdlDiv,
+			},
+		},
+		{
+			"version 1.1 workflow Test {input{Int t=3%4}}",
+			[]interface{}{value{Int, int64(3)}, value{Int, int64(4)}, wdlMod},
+		},
+		{
+			"version 1.1 workflow Test {input{Int t=3+4}}",
+			[]interface{}{value{Int, int64(3)}, value{Int, int64(4)}, wdlAdd},
+		},
+		{
+			"version 1.1 workflow Test {input{Int t=3.0-4}}",
+			[]interface{}{
+				value{Float, float64(3)}, value{Int, int64(4)}, wdlSub,
+			},
+		},
+		{
+			"version 1.1 workflow Test {input{Boolean t=true==false}}",
+			[]interface{}{value{Boolean, true}, value{Boolean, false}, wdlEq},
+		},
+		{
+			"version 1.1 workflow Test {input{Boolean t=true!=false}}",
+			[]interface{}{value{Boolean, true}, value{Boolean, false}, wdlNeq},
+		},
+		{
+			"version 1.1 workflow Test {input{Int t=3<4}}",
+			[]interface{}{value{Int, int64(3)}, value{Int, int64(4)}, wdlLt},
+		},
+		{
+			"version 1.1 workflow Test {input{Int t=3<=4}}",
+			[]interface{}{value{Int, int64(3)}, value{Int, int64(4)}, wdlLte},
+		},
+		{
+			"version 1.1 workflow Test {input{Int t=3>4}}",
+			[]interface{}{value{Int, int64(3)}, value{Int, int64(4)}, wdlGt},
+		},
+		{
+			"version 1.1 workflow Test {input{Int t=3>=4}}",
+			[]interface{}{value{Int, int64(3)}, value{Int, int64(4)}, wdlGte},
+		},
+		{
+			"version 1.1 workflow Test {input{Boolean t=true&&false}}",
+			[]interface{}{value{Boolean, true}, value{Boolean, false}, wdlAnd},
+		},
+		{
+			"version 1.1 workflow Test {input{Boolean t=true||false}}",
+			[]interface{}{value{Boolean, true}, value{Boolean, false}, wdlOr},
+		},
 	}
 	for _, tc := range testCases {
 		result, err := Antlr4Parse(tc.wdl)
@@ -120,12 +78,9 @@ func TestArithmetic(t *testing.T) {
 				"Found %d errors in %q, expect no errors", len(err), tc.wdl,
 			)
 		}
-		v, evalErr := result.Workflow.Inputs.decls[0].evaluator.eval()
-		if evalErr != nil {
-			t.Errorf("Fail to evaluate %v: %w", tc.wdl, evalErr)
-		}
-		if v.govalue != tc.want {
-			t.Errorf("Evaluate %v as %v, expect %v", tc.wdl, v.govalue, tc.want)
+		v := result.Workflow.Inputs.decls[0].initialization
+		if !reflect.DeepEqual(v.rpn, tc.want) {
+			t.Errorf("Evaluate %v as %v, expect %v", tc.wdl, v.rpn, tc.want)
 		}
 	}
 }

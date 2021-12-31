@@ -143,23 +143,19 @@ func (l *wdlv1_1Listener) ExitBound_decls(ctx *parser.Bound_declsContext) {
 			),
 		)
 	}
-	var evals []evaluator
+	var childExprs []*expr
 	for _, child := range obj.getChildren() {
-		if e, isExpr := child.(evaluator); isExpr {
-			evals = append(evals, e)
+		if e, isExpr := child.(*expr); isExpr {
+			childExprs = append(childExprs, e)
 		}
 	}
-	evalCount := len(evals)
-	if evalCount > 1 {
+	if len(childExprs) != 1 {
 		log.Fatalf(
-			"Parser error: bound declaration can have only one child"+
-				" expressions, found %v",
-			evalCount,
+			"bound declaration expects exactly 1 child expression, found %v",
+			len(childExprs),
 		)
 	}
-	if evalCount == 1 {
-		obj.evaluator = evals[0]
-	}
+	obj.initialization = childExprs[0]
 	l.currentNode = l.currentNode.getParent()
 }
 
@@ -719,6 +715,7 @@ func Antlr4Parse(input string) (*WDL, []wdlSyntaxError) {
 	lexer := parser.NewWdlV1_1Lexer(inputStream)
 	stream := antlr.NewCommonTokenStream(lexer, 0)
 	p := parser.NewWdlV1_1Parser(stream)
+	p.BuildParseTrees = false
 	p.Interpreter.SetPredictionMode(antlr.PredictionModeSLL)
 	errorListener := newWdlErrorListener(true)
 	p.AddErrorListener(errorListener)

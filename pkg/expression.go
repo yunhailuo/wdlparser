@@ -5,9 +5,38 @@ import (
 	"log"
 	"math"
 	"strconv"
+	"sync"
 
 	parser "github.com/yunhailuo/wdlparser/pkg/wdlv1_1"
 )
+
+type expr struct {
+	genNode
+	rpn  []interface{}
+	lock sync.RWMutex
+}
+
+func (*expr) getKind() nodeKind { return exp }
+
+func (e *expr) append(elem interface{}) {
+	e.lock.Lock()
+	defer e.lock.Unlock()
+	e.rpn = append(e.rpn, elem)
+}
+
+func (e *expr) extend(e2 *expr) {
+	e.lock.Lock()
+	defer e.lock.Unlock()
+	e2.lock.Lock()
+	defer e2.lock.Unlock()
+	e.rpn = append(e.rpn, e2.rpn...)
+}
+
+func newExpr(start, end int) *expr {
+	e := new(expr)
+	e.genNode = genNode{start: start, end: end}
+	return e
+}
 
 // A Type represents a type of WDL.
 // All types implement the Type interface.
@@ -19,11 +48,14 @@ type primitive string
 
 func (p primitive) typeString() string { return string(p) }
 
-const Boolean = primitive("Boolean")
-const Int = primitive("Int")
-const Float = primitive("Float")
-const String = primitive("String")
-const Any = primitive("Any")
+const (
+	Boolean = primitive("Boolean")
+	Int     = primitive("Int")
+	Float   = primitive("Float")
+	String  = primitive("String")
+	File    = primitive("File")
+	Any     = primitive("Any")
+)
 
 // A value represents a value in WDL.
 type value struct {
@@ -31,608 +63,433 @@ type value struct {
 	govalue interface{} // actual underlying go value
 }
 
-func makeNone() value {
-	return value{Any, nil}
-}
-
-type evaluator interface {
-	node
-	eval() (value, error)
-}
-
-type primitiveLiteral struct {
-	genNode
-	literal string
-	typ     primitive
-}
-
-func newPrimitiveLiteral(
-	start, end int, lit string, typ primitive,
-) *primitiveLiteral {
-	p := new(primitiveLiteral)
-	p.genNode = genNode{start: start, end: end}
-	p.literal = lit
-	p.typ = typ
-	return p
-}
-
-func (*primitiveLiteral) getKind() nodeKind { return exp }
-
-func (p primitiveLiteral) eval() (value, error) {
+func newValue(typ Type, raw string) (value, error) {
 	v := new(value)
-	v.typ = p.typ
+	v.typ = typ
 	var e error = nil
-	switch p.typ {
+	switch typ {
 	case Boolean:
-		v.govalue, e = strconv.ParseBool(p.literal)
+		v.govalue, e = strconv.ParseBool(raw)
 	case Int:
-		v.govalue, e = strconv.ParseInt(p.literal, 10, 64)
+		v.govalue, e = strconv.ParseInt(raw, 10, 64)
 	case Float:
-		v.govalue, e = strconv.ParseFloat(p.literal, 64)
-	case String:
-		v.govalue = p.literal
+		v.govalue, e = strconv.ParseFloat(raw, 64)
+	case String, File:
+		v.govalue = raw
 	case Any:
 		v.govalue = nil
 	default:
 		v.govalue = nil
-		e = fmt.Errorf("unsupported primitive: %v", p.typ)
+		e = fmt.Errorf("unsupported primitive: %v", typ)
 	}
 	return *v, e
 }
 
-// A unaryExpr node represents a unary operation.
-type unaryExpr struct {
-	genNode
-	x     evaluator // operand
-	opSym string
+func newNone() value {
+	return value{Any, nil}
 }
 
-func newUnaryExpr(start, end int, symbol string) *unaryExpr {
-	u := new(unaryExpr)
-	u.genNode = genNode{start: start, end: end}
-	u.opSym = symbol
-	return u
+// Operators
+
+type wdlOpSym string
+
+const (
+	wdlNeg wdlOpSym = " -"
+	wdlNot wdlOpSym = "!"
+	wdlMul wdlOpSym = "*"
+	wdlDiv wdlOpSym = "/"
+	wdlMod wdlOpSym = "%"
+	wdlAdd wdlOpSym = "+"
+	wdlSub wdlOpSym = "-"
+	wdlEq  wdlOpSym = "=="
+	wdlNeq wdlOpSym = "!="
+	wdlLt  wdlOpSym = "<"
+	wdlLte wdlOpSym = "<="
+	wdlGt  wdlOpSym = ">"
+	wdlGte wdlOpSym = ">="
+	wdlAnd wdlOpSym = "&&"
+	wdlOr  wdlOpSym = "||"
+)
+
+var Operations = map[wdlOpSym]interface{}{
+	wdlNeg: arithmeticNegation,
+	wdlNot: logicalNegation,
+	wdlMul: multiplication,
+	wdlDiv: division,
+	wdlMod: modulo,
+	wdlAdd: addition,
+	wdlSub: subtraction,
+	wdlEq:  equality,
+	wdlNeq: inequality,
+	wdlLt:  less,
+	wdlLte: lessEqual,
+	wdlGt:  greater,
+	wdlGte: greaterEqual,
+	wdlAnd: logicalAnd,
+	wdlOr:  logicalOr,
 }
 
-func (*unaryExpr) getKind() nodeKind { return exp }
+// Unary operators
 
-func (u unaryExpr) eval() (value, error) {
-	x, errX := u.x.eval()
-	if errX != nil {
-		return makeNone(), errX
+func arithmeticNegation(rhs value) (value, error) {
+	switch v := rhs.govalue.(type) {
+	case float64:
+		return value{Float, -v}, nil
+	case int64:
+		return value{Int, -v}, nil
+	default:
+		return newNone(), fmt.Errorf(
+			"arithmetic negation doesn't support: %v of %T", v, v,
+		)
 	}
-	switch u.opSym {
-	case "!":
-		if x.typ != Boolean {
-			return makeNone(), fmt.Errorf(
-				"logical negation is only valid for boolean, got %v", x.typ,
+}
+
+func logicalNegation(rhs value) (value, error) {
+	switch v := rhs.govalue.(type) {
+	case bool:
+		return value{Boolean, !v}, nil
+	default:
+		return newNone(), fmt.Errorf(
+			"logical negation doesn't support: %v of %T", v, v,
+		)
+	}
+}
+
+// Binary operators
+
+func generalBinaryOp(lhs, rhs value, op wdlOpSym) (value, error) {
+	typePair := [2]Type{lhs.typ, rhs.typ}
+	switch {
+	case typePair == [2]Type{Boolean, Boolean}:
+		l := lhs.govalue.(bool)
+		r := rhs.govalue.(bool)
+		switch op {
+		case wdlEq:
+			return value{Boolean, l == r}, nil
+		case wdlNeq:
+			return value{Boolean, l != r}, nil
+		case wdlLt:
+			return value{
+				Boolean, strconv.FormatBool(l) < strconv.FormatBool(r),
+			}, nil
+		case wdlLte:
+			return value{
+				Boolean, strconv.FormatBool(l) <= strconv.FormatBool(r),
+			}, nil
+		case wdlGt:
+			return value{
+				Boolean, strconv.FormatBool(l) > strconv.FormatBool(r),
+			}, nil
+		case wdlGte:
+			return value{
+				Boolean, strconv.FormatBool(l) >= strconv.FormatBool(r),
+			}, nil
+		case wdlAnd:
+			return value{Boolean, l && r}, nil
+		case wdlOr:
+			return value{Boolean, l || r}, nil
+		default:
+			return newNone(), fmt.Errorf(
+				"%v doesn't support: %v and %v", op, lhs.typ, rhs.typ,
 			)
 		}
-		return value{typ: Boolean, govalue: !x.govalue.(bool)}, nil
-	case "-":
-		if x.typ == Int {
-			return value{typ: Int, govalue: -x.govalue.(int64)}, nil
+	case typePair == [2]Type{Int, Int}:
+		l := lhs.govalue.(int64)
+		r := rhs.govalue.(int64)
+		switch op {
+		case wdlMul:
+			return value{Int, l * r}, nil
+		case wdlDiv:
+			return value{Int, l / r}, nil
+		case wdlMod:
+			return value{Int, l % r}, nil
+		case wdlAdd:
+			return value{Int, l + r}, nil
+		case wdlSub:
+			return value{Int, l - r}, nil
+		case wdlEq:
+			return value{Boolean, l == r}, nil
+		case wdlNeq:
+			return value{Boolean, l != r}, nil
+		case wdlLt:
+			return value{Boolean, l < r}, nil
+		case wdlLte:
+			return value{Boolean, l <= r}, nil
+		case wdlGt:
+			return value{Boolean, l > r}, nil
+		case wdlGte:
+			return value{Boolean, l >= r}, nil
+		default:
+			return newNone(), fmt.Errorf(
+				"%v doesn't support: %v and %v", op, lhs.typ, rhs.typ,
+			)
 		}
-		if x.typ == Float {
-			return value{typ: Float, govalue: -x.govalue.(float64)}, nil
+	case typePair == [2]Type{Float, Float}, typePair == [2]Type{Int, Float},
+		typePair == [2]Type{Float, Int}:
+		var l, r float64
+		var lFloat, rFloat bool
+		l, lFloat = lhs.govalue.(float64)
+		if !lFloat {
+			l = float64(lhs.govalue.(int64))
 		}
-		return makeNone(), fmt.Errorf(
-			"arithmetic negation is only valid for int or float, got %v",
-			x.typ,
-		)
-	case "+", "()": // positive or expression group
-		return x, nil
+		r, rFloat = rhs.govalue.(float64)
+		if !rFloat {
+			r = float64(rhs.govalue.(int64))
+		}
+		switch op {
+		case wdlMul:
+			return value{Float, l * r}, nil
+		case wdlDiv:
+			return value{Float, l / r}, nil
+		case wdlMod:
+			return value{Float, math.Mod(l, r)}, nil
+		case wdlAdd:
+			return value{Float, l + r}, nil
+		case wdlSub:
+			return value{Float, l - r}, nil
+		case wdlEq:
+			return value{Boolean, l == r}, nil
+		case wdlNeq:
+			return value{Boolean, l != r}, nil
+		case wdlLt:
+			return value{Boolean, l < r}, nil
+		case wdlLte:
+			return value{Boolean, l <= r}, nil
+		case wdlGt:
+			return value{Boolean, l > r}, nil
+		case wdlGte:
+			return value{Boolean, l >= r}, nil
+		default:
+			return newNone(), fmt.Errorf(
+				"%v doesn't support: %v and %v", op, lhs.typ, rhs.typ,
+			)
+		}
+	case typePair == [2]Type{String, String}:
+		l := lhs.govalue.(string)
+		r := rhs.govalue.(string)
+		switch op {
+		case wdlAdd:
+			return value{String, l + r}, nil
+		case wdlEq:
+			return value{Boolean, l == r}, nil
+		case wdlNeq:
+			return value{Boolean, l != r}, nil
+		case wdlLt:
+			return value{Boolean, l < r}, nil
+		case wdlLte:
+			return value{Boolean, l <= r}, nil
+		case wdlGt:
+			return value{Boolean, l > r}, nil
+		case wdlGte:
+			return value{Boolean, l >= r}, nil
+		default:
+			return newNone(), fmt.Errorf(
+				"%v doesn't support: %v and %v", op, lhs.typ, rhs.typ,
+			)
+		}
+	case typePair == [2]Type{String, Int}, typePair == [2]Type{Int, String},
+		typePair == [2]Type{String, Float}, typePair == [2]Type{Float, String}:
+		var l, r string
+		switch lhs.typ {
+		case Int:
+			l = strconv.FormatInt(lhs.govalue.(int64), 10)
+		case Float:
+			l = strconv.FormatFloat(lhs.govalue.(float64), 'G', -1, 64)
+		case String:
+			l = lhs.govalue.(string)
+		}
+		switch rhs.typ {
+		case Int:
+			r = strconv.FormatInt(rhs.govalue.(int64), 10)
+		case Float:
+			r = strconv.FormatFloat(rhs.govalue.(float64), 'G', -1, 64)
+		case String:
+			r = rhs.govalue.(string)
+		}
+		switch op {
+		case wdlAdd:
+			return value{String, l + r}, nil
+		default:
+			return newNone(), fmt.Errorf(
+				"%v doesn't support: %v and %v", op, lhs.typ, rhs.typ,
+			)
+		}
+	case typePair == [2]Type{String, File}, typePair == [2]Type{File, String},
+		typePair == [2]Type{File, File}:
+		l := lhs.govalue.(string)
+		r := rhs.govalue.(string)
+		switch op {
+		case wdlAdd:
+			return value{File, l + r}, nil
+		case wdlEq:
+			return value{Boolean, l == r}, nil
+		case wdlNeq:
+			return value{Boolean, l != r}, nil
+		default:
+			return newNone(), fmt.Errorf(
+				"%v doesn't support: %v and %v", op, lhs.typ, rhs.typ,
+			)
+		}
 	default:
-		return makeNone(), fmt.Errorf("unknown unary operator: %v", u.opSym)
-	}
-}
-
-func (u unaryExpr) getOperand() evaluator {
-	var evals []evaluator
-	for _, child := range u.getChildren() {
-		if ce, isExpr := child.(evaluator); isExpr {
-			evals = append(evals, ce)
-		}
-	}
-	if len(evals) != 1 {
-		log.Fatalf(
-			"unary expression expects exactly 1 operand, found %v", len(evals),
-		)
-	} else {
-		return evals[0]
-	}
-	return nil
-}
-
-// A binaryExpr node represents a binary operation.
-type binaryExpr struct {
-	genNode
-	x     evaluator // left operand
-	y     evaluator // right operand
-	opSym string
-}
-
-func newBinaryExpr(start, end int, symbol string) *binaryExpr {
-	b := new(binaryExpr)
-	b.genNode = genNode{start: start, end: end}
-	b.opSym = symbol
-	return b
-}
-
-func (*binaryExpr) getKind() nodeKind { return exp }
-
-func wdlOr(x, y value) (value, error) {
-	xIsBool, yIsBool := x.typ == Boolean, y.typ == Boolean
-	switch {
-	case xIsBool && yIsBool:
-		return value{
-			typ: Boolean, govalue: x.govalue.(bool) || y.govalue.(bool),
-		}, nil
-	case xIsBool && (!yIsBool): // only y is invalid
-		return makeNone(), fmt.Errorf(
-			"found right operand is not bool, " +
-				"expect both operands being bool for OR operation",
-		)
-	case (!xIsBool) && yIsBool: // only x is invalid
-		return makeNone(), fmt.Errorf(
-			"found left operand is not bool, " +
-				"expect both operands being bool for OR operation",
-		)
-	default: // neither operands is valid
-		return makeNone(), fmt.Errorf(
-			"found neither left or right operands is bool, " +
-				"expect both operands being bool for OR operation",
+		return newNone(), fmt.Errorf(
+			"operation %v doesn't support: %v and %v in generalBinaryOp",
+			op, lhs.typ, rhs.typ,
 		)
 	}
 }
 
-func wdlAnd(operands ...value) (value, error) {
-	operandCount := len(operands)
-	if operandCount != 2 {
-		return makeNone(), fmt.Errorf(
-			"found %d operands, expect 2 for AND operation", operandCount,
-		)
-	}
-	x, y := operands[0], operands[1]
-	xIsBool, yIsBool := x.typ == Boolean, y.typ == Boolean
-	switch {
-	case xIsBool && yIsBool:
-		return value{
-			typ: Boolean, govalue: x.govalue.(bool) && y.govalue.(bool),
-		}, nil
-	case xIsBool && (!yIsBool): // only y is invalid
-		return makeNone(), fmt.Errorf(
-			"found right operand is not bool, " +
-				"expect both operands being bool for AND operation",
-		)
-	case (!xIsBool) && yIsBool: // only x is invalid
-		return makeNone(), fmt.Errorf(
-			"found left operand is not bool, " +
-				"expect both operands being bool for AND operation",
-		)
-	default: // neither operands is valid
-		return makeNone(), fmt.Errorf(
-			"found neither left or right operands is bool, " +
-				"expect both operands being bool for AND operation",
-		)
-	}
+func multiplication(lhs, rhs value) (value, error) {
+	return generalBinaryOp(lhs, rhs, wdlMul)
 }
 
-func wdlLt(operands ...value) (value, error) {
-	operandCount := len(operands)
-	if operandCount != 2 {
-		return makeNone(), fmt.Errorf(
-			"found %d operands, expect 2 for less than comparison",
-			operandCount,
-		)
-	}
-	x, y := operands[0], operands[1]
-	switch {
-	case x.typ == Int && y.typ == Int:
-		return value{
-			typ: Boolean, govalue: (x.govalue.(int64)) < (y.govalue.(int64)),
-		}, nil
-	case x.typ == Float && y.typ == Int:
-		return value{
-			typ:     Boolean,
-			govalue: (x.govalue.(float64)) < float64(y.govalue.(int64)),
-		}, nil
-	case x.typ == Int && y.typ == Float:
-		return value{
-			typ:     Boolean,
-			govalue: float64(x.govalue.(int64)) < (y.govalue.(float64)),
-		}, nil
-	case x.typ == Float && y.typ == Float:
-		return value{
-			typ:     Boolean,
-			govalue: (x.govalue.(float64)) < (y.govalue.(float64)),
-		}, nil
-	case x.typ == String && y.typ == String:
-		return value{
-			typ: Boolean, govalue: (x.govalue.(string)) < (y.govalue.(string)),
-		}, nil
-	default: // neither operands is int, float or string
-		return makeNone(), fmt.Errorf(
-			"invalid operands: less than comparison is only valid for" +
-				" int, float or string",
-		)
-	}
+func division(lhs, rhs value) (value, error) {
+	return generalBinaryOp(lhs, rhs, wdlDiv)
 }
 
-func wdlLe(operands ...value) (value, error) {
-	operandCount := len(operands)
-	if operandCount != 2 {
-		return makeNone(), fmt.Errorf(
-			"found %d operands, expect 2 for less than or equal to comparison",
-			operandCount,
-		)
-	}
-	x, y := operands[0], operands[1]
-	switch {
-	case x.typ == Int && y.typ == Int:
-		return value{
-			typ: Boolean, govalue: (x.govalue.(int64)) <= (y.govalue.(int64)),
-		}, nil
-	case x.typ == Float && y.typ == Int:
-		return value{
-			typ:     Boolean,
-			govalue: (x.govalue.(float64)) <= float64(y.govalue.(int64)),
-		}, nil
-	case x.typ == Int && y.typ == Float:
-		return value{
-			typ:     Boolean,
-			govalue: float64(x.govalue.(int64)) <= (y.govalue.(float64)),
-		}, nil
-	case x.typ == Float && y.typ == Float:
-		return value{
-			typ:     Boolean,
-			govalue: (x.govalue.(float64)) <= (y.govalue.(float64)),
-		}, nil
-	case x.typ == String && y.typ == String:
-		return value{
-			typ: Boolean, govalue: (x.govalue.(string)) <= (y.govalue.(string)),
-		}, nil
-	default: // neither operands is int, float or string
-		return makeNone(), fmt.Errorf(
-			"invalid operands: less than or equal to comparison is only valid" +
-				" for int, float or string",
-		)
-	}
+func modulo(lhs, rhs value) (value, error) {
+	return generalBinaryOp(lhs, rhs, wdlMod)
+}
+func addition(lhs, rhs value) (value, error) {
+	return generalBinaryOp(lhs, rhs, wdlAdd)
 }
 
-func wdlGe(operands ...value) (value, error) {
-	operandCount := len(operands)
-	if operandCount != 2 {
-		return makeNone(), fmt.Errorf(
-			"found %d operands, expect 2 for greater than or equal to"+
-				" comparison",
-			operandCount,
-		)
-	}
-	x, y := operands[0], operands[1]
-	switch {
-	case x.typ == Int && y.typ == Int:
-		return value{
-			typ: Boolean, govalue: (x.govalue.(int64)) >= (y.govalue.(int64)),
-		}, nil
-	case x.typ == Float && y.typ == Int:
-		return value{
-			typ:     Boolean,
-			govalue: (x.govalue.(float64)) >= float64(y.govalue.(int64)),
-		}, nil
-	case x.typ == Int && y.typ == Float:
-		return value{
-			typ:     Boolean,
-			govalue: float64(x.govalue.(int64)) >= (y.govalue.(float64)),
-		}, nil
-	case x.typ == Float && y.typ == Float:
-		return value{
-			typ:     Boolean,
-			govalue: (x.govalue.(float64)) >= (y.govalue.(float64)),
-		}, nil
-	case x.typ == String && y.typ == String:
-		return value{
-			typ: Boolean, govalue: (x.govalue.(string)) >= (y.govalue.(string)),
-		}, nil
-	default: // neither operands is int, float or string
-		return makeNone(), fmt.Errorf(
-			"invalid operands: greater than or equal to comparison is" +
-				" only valid for int, float or string",
-		)
-	}
+func subtraction(lhs, rhs value) (value, error) {
+	return generalBinaryOp(lhs, rhs, wdlSub)
 }
 
-func wdlGt(operands ...value) (value, error) {
-	operandCount := len(operands)
-	if operandCount != 2 {
-		return makeNone(), fmt.Errorf(
-			"found %d operands, expect 2 for greater than comparison",
-			operandCount,
-		)
-	}
-	x, y := operands[0], operands[1]
-	switch {
-	case x.typ == Int && y.typ == Int:
-		return value{
-			typ: Boolean, govalue: (x.govalue.(int64)) > (y.govalue.(int64)),
-		}, nil
-	case x.typ == Float && y.typ == Int:
-		return value{
-			typ:     Boolean,
-			govalue: (x.govalue.(float64)) > float64(y.govalue.(int64)),
-		}, nil
-	case x.typ == Int && y.typ == Float:
-		return value{
-			typ:     Boolean,
-			govalue: float64(x.govalue.(int64)) > (y.govalue.(float64)),
-		}, nil
-	case x.typ == Float && y.typ == Float:
-		return value{
-			typ:     Boolean,
-			govalue: (x.govalue.(float64)) > (y.govalue.(float64)),
-		}, nil
-	case x.typ == String && y.typ == String:
-		return value{
-			typ: Boolean, govalue: (x.govalue.(string)) > (y.govalue.(string)),
-		}, nil
-	default: // neither operands is int, float or string
-		return makeNone(), fmt.Errorf(
-			"invalid operands: greater than comparison is only valid" +
-				" for int, float or string",
-		)
-	}
+func equality(lhs, rhs value) (value, error) {
+	return generalBinaryOp(lhs, rhs, wdlEq)
 }
-
-func wdlMul(operands ...value) (value, error) {
-	operandCount := len(operands)
-	if operandCount != 2 {
-		return makeNone(), fmt.Errorf(
-			"found %d operands, expect 2 for multiplication", operandCount,
-		)
-	}
-	x, y := operands[0], operands[1]
-	switch {
-	case x.typ == Int && y.typ == Int:
-		return value{
-			typ: Int, govalue: (x.govalue.(int64)) * (y.govalue.(int64)),
-		}, nil
-	case x.typ == Float && y.typ == Int:
-		return value{
-			typ:     Float,
-			govalue: (x.govalue.(float64)) * float64(y.govalue.(int64)),
-		}, nil
-	case x.typ == Int && y.typ == Float:
-		return value{
-			typ:     Float,
-			govalue: float64(x.govalue.(int64)) * (y.govalue.(float64)),
-		}, nil
-	case x.typ == Float && y.typ == Float:
-		return value{
-			typ: Float, govalue: (x.govalue.(float64)) * (y.govalue.(float64)),
-		}, nil
-	default: // neither operands is int or float
-		return makeNone(), fmt.Errorf(
-			"invalid operands: multiplication is only valid for int or float",
-		)
-	}
+func inequality(lhs, rhs value) (value, error) {
+	return generalBinaryOp(lhs, rhs, wdlNeq)
 }
-
-func wdlDiv(operands ...value) (value, error) {
-	operandCount := len(operands)
-	if operandCount != 2 {
-		return makeNone(), fmt.Errorf(
-			"found %d operands, expect 2 for division", operandCount,
-		)
-	}
-	x, y := operands[0], operands[1]
-	switch {
-	case x.typ == Int && y.typ == Int:
-		return value{
-			typ: Int, govalue: (x.govalue.(int64)) / (y.govalue.(int64)),
-		}, nil
-	case x.typ == Float && y.typ == Int:
-		return value{
-			typ:     Float,
-			govalue: (x.govalue.(float64)) / float64(y.govalue.(int64)),
-		}, nil
-	case x.typ == Int && y.typ == Float:
-		return value{
-			typ:     Float,
-			govalue: float64(x.govalue.(int64)) / (y.govalue.(float64)),
-		}, nil
-	case x.typ == Float && y.typ == Float:
-		return value{
-			typ: Float, govalue: (x.govalue.(float64)) / (y.govalue.(float64)),
-		}, nil
-	default: // neither operands is int or float
-		return makeNone(), fmt.Errorf(
-			"invalid operands: division is only valid for int or float",
-		)
-	}
+func less(lhs, rhs value) (value, error) {
+	return generalBinaryOp(lhs, rhs, wdlLt)
 }
-
-func wdlMod(operands ...value) (value, error) {
-	operandCount := len(operands)
-	if operandCount != 2 {
-		return makeNone(), fmt.Errorf(
-			"found %d operands, expect 2 for modulo", operandCount,
-		)
-	}
-	x, y := operands[0], operands[1]
-	switch {
-	case x.typ == Int && y.typ == Int:
-		return value{
-			typ: Int, govalue: (x.govalue.(int64)) % (y.govalue.(int64)),
-		}, nil
-	case x.typ == Float && y.typ == Int:
-		return value{
-			typ:     Float,
-			govalue: math.Mod(x.govalue.(float64), float64(y.govalue.(int64))),
-		}, nil
-	case x.typ == Int && y.typ == Float:
-		return value{
-			typ:     Float,
-			govalue: math.Mod(float64(x.govalue.(int64)), y.govalue.(float64)),
-		}, nil
-	case x.typ == Float && y.typ == Float:
-		return value{
-			typ:     Float,
-			govalue: math.Mod(x.govalue.(float64), y.govalue.(float64)),
-		}, nil
-	default: // neither operands is int or float
-		return makeNone(), fmt.Errorf(
-			"invalid operands: modulo is only valid for int or float",
-		)
-	}
+func lessEqual(lhs, rhs value) (value, error) {
+	return generalBinaryOp(lhs, rhs, wdlLte)
 }
-
-func wdlSub(operands ...value) (value, error) {
-	operandCount := len(operands)
-	if operandCount != 2 {
-		return makeNone(), fmt.Errorf(
-			"found %d operands, expect 2 for subtraction", operandCount,
-		)
-	}
-	x, y := operands[0], operands[1]
-	switch {
-	case x.typ == Int && y.typ == Int:
-		return value{
-			typ: Int, govalue: (x.govalue.(int64)) - (y.govalue.(int64)),
-		}, nil
-	case x.typ == Float && y.typ == Int:
-		return value{
-			typ:     Float,
-			govalue: (x.govalue.(float64)) - float64(y.govalue.(int64)),
-		}, nil
-	case x.typ == Int && y.typ == Float:
-		return value{
-			typ:     Float,
-			govalue: float64(x.govalue.(int64)) - (y.govalue.(float64)),
-		}, nil
-	case x.typ == Float && y.typ == Float:
-		return value{
-			typ: Float, govalue: (x.govalue.(float64)) - (y.govalue.(float64)),
-		}, nil
-	default: // neither operands is int or float
-		return makeNone(), fmt.Errorf(
-			"invalid operands: subtraction is only valid for int or float",
-		)
-	}
+func greater(lhs, rhs value) (value, error) {
+	return generalBinaryOp(lhs, rhs, wdlGt)
 }
-
-func (b binaryExpr) eval() (value, error) {
-	x, errX := b.x.eval()
-	if errX != nil {
-		return makeNone(), errX
-	}
-	y, errY := b.y.eval()
-	if errY != nil {
-		return makeNone(), errY
-	}
-	switch b.opSym {
-	case "||":
-		return wdlOr(x, y)
-	case "&&":
-		return wdlAnd(x, y)
-	case "<":
-		return wdlLt(x, y)
-	case "<=":
-		return wdlLe(x, y)
-	case ">=":
-		return wdlGe(x, y)
-	case ">":
-		return wdlGt(x, y)
-	case "*":
-		return wdlMul(x, y)
-	case "/":
-		return wdlDiv(x, y)
-	case "%":
-		return wdlMod(x, y)
-	case "-":
-		return wdlSub(x, y)
-	default:
-		return makeNone(), fmt.Errorf("unknown binary operator: %v", b.opSym)
-	}
+func greaterEqual(lhs, rhs value) (value, error) {
+	return generalBinaryOp(lhs, rhs, wdlGte)
 }
-
-func (b binaryExpr) getOperands() (evaluator, evaluator) {
-	var evals []evaluator
-	for _, child := range b.getChildren() {
-		if ce, isExpr := child.(evaluator); isExpr {
-			evals = append(evals, ce)
-		}
-	}
-	if len(evals) != 2 {
-		log.Fatalf(
-			"binary expression expects exactly 2 operands, found %v",
-			len(evals),
-		)
-	} else {
-		return evals[0], evals[1]
-	}
-	return nil, nil
+func logicalAnd(lhs, rhs value) (value, error) {
+	return generalBinaryOp(lhs, rhs, wdlAnd)
+}
+func logicalOr(lhs, rhs value) (value, error) {
+	return generalBinaryOp(lhs, rhs, wdlOr)
 }
 
 // Antlr4 listeners
 
-func (l *wdlv1_1Listener) ExitPrimitive_literal(
-	ctx *parser.Primitive_literalContext,
-) {
-	var p *primitiveLiteral
-	// BoolLiteral of primitive_literal
-	boolToken := ctx.BoolLiteral()
-	if boolToken != nil {
-		p = newPrimitiveLiteral(
-			ctx.GetStart().GetStart(),
-			ctx.GetStop().GetStop(),
-			boolToken.GetText(),
-			Boolean,
-		)
-		l.branching(p, false)
-	}
-}
-
-func (l *wdlv1_1Listener) ExitNumber(ctx *parser.NumberContext) {
-	var p *primitiveLiteral
-
-	// IntLiteral
-	intToken := ctx.IntLiteral()
-	if intToken != nil {
-		p = newPrimitiveLiteral(
-			ctx.GetStart().GetStart(),
-			ctx.GetStop().GetStop(),
-			intToken.GetText(),
-			Int,
-		)
-		l.branching(p, false)
-	}
-
-	// FloatLiteral
-	floatToken := ctx.FloatLiteral()
-	if floatToken != nil {
-		p = newPrimitiveLiteral(
-			ctx.GetStart().GetStart(),
-			ctx.GetStop().GetStop(),
-			floatToken.GetText(),
-			Float,
-		)
-		l.branching(p, false)
-	}
-}
-
-func (l *wdlv1_1Listener) EnterLor(ctx *parser.LorContext) {
+func (l *wdlv1_1Listener) EnterExpr(ctx *parser.ExprContext) {
 	l.branching(
-		newBinaryExpr(
+		newExpr(
 			ctx.GetStart().GetStart(),
 			ctx.GetStop().GetStop(),
-			ctx.OR().GetText(),
 		),
 		true,
 	)
 }
 
+func (l *wdlv1_1Listener) ExitExpr(ctx *parser.ExprContext) {
+	l.currentNode = l.currentNode.getParent()
+}
+
+func (l *wdlv1_1Listener) ExitPrimitive_literal(
+	ctx *parser.Primitive_literalContext,
+) {
+	expr, isExpr := l.currentNode.(*expr)
+	if !isExpr {
+		log.Fatal(
+			newMismatchContextError(
+				ctx.GetStart().GetLine(),
+				ctx.GetStart().GetColumn(),
+				"number",
+				"expression",
+				l.currentNode,
+			),
+		)
+	}
+
+	// BoolLiteral of primitive_literal
+	boolToken := ctx.BoolLiteral()
+	if boolToken != nil {
+		v, e := newValue(Boolean, boolToken.GetText())
+		if e == nil {
+			expr.append(v)
+		} else {
+			log.Fatal(e)
+		}
+		return
+	}
+
+	// NONELITERAL of primitive_literal
+	noneToken := ctx.NONELITERAL()
+	if noneToken != nil {
+		v, e := newValue(Any, noneToken.GetText())
+		if e == nil {
+			expr.append(v)
+		} else {
+			log.Fatal(e)
+		}
+		return
+	}
+
+	// Identifier of primitive_literal
+	// TODO: this should somehow point to the variable
+	identifierToken := ctx.Identifier()
+	if identifierToken != nil {
+		expr.append(identifierToken)
+		return
+	}
+}
+
+func (l *wdlv1_1Listener) ExitNumber(ctx *parser.NumberContext) {
+	expr, isExpr := l.currentNode.(*expr)
+	if !isExpr {
+		log.Fatal(
+			newMismatchContextError(
+				ctx.GetStart().GetLine(),
+				ctx.GetStart().GetColumn(),
+				"number",
+				"expression",
+				l.currentNode,
+			),
+		)
+	}
+
+	// IntLiteral
+	intToken := ctx.IntLiteral()
+	if intToken != nil {
+		v, e := newValue(Int, intToken.GetText())
+		if e == nil {
+			expr.append(v)
+		} else {
+			log.Fatal(e)
+		}
+		return
+	}
+
+	// FloatLiteral
+	floatToken := ctx.FloatLiteral()
+	if floatToken != nil {
+		v, e := newValue(Float, floatToken.GetText())
+		if e == nil {
+			expr.append(v)
+		} else {
+			log.Fatal(e)
+		}
+		return
+	}
+
+	log.Fatalf("Failed to parse %v: %v", "Number", ctx.GetText())
+}
+
 func (l *wdlv1_1Listener) ExitLor(ctx *parser.LorContext) {
-	lorExpr, isExpr := l.currentNode.(*binaryExpr)
+	expr, isExpr := l.currentNode.(*expr)
 	if !isExpr {
 		log.Fatal(
 			newMismatchContextError(
@@ -644,23 +501,11 @@ func (l *wdlv1_1Listener) ExitLor(ctx *parser.LorContext) {
 			),
 		)
 	}
-	lorExpr.x, lorExpr.y = lorExpr.getOperands()
-	l.currentNode = l.currentNode.getParent()
-}
-
-func (l *wdlv1_1Listener) EnterLand(ctx *parser.LandContext) {
-	l.branching(
-		newBinaryExpr(
-			ctx.GetStart().GetStart(),
-			ctx.GetStop().GetStop(),
-			ctx.AND().GetText(),
-		),
-		true,
-	)
+	expr.append(wdlOr)
 }
 
 func (l *wdlv1_1Listener) ExitLand(ctx *parser.LandContext) {
-	landExpr, isExpr := l.currentNode.(*binaryExpr)
+	expr, isExpr := l.currentNode.(*expr)
 	if !isExpr {
 		log.Fatal(
 			newMismatchContextError(
@@ -672,167 +517,91 @@ func (l *wdlv1_1Listener) ExitLand(ctx *parser.LandContext) {
 			),
 		)
 	}
-	landExpr.x, landExpr.y = landExpr.getOperands()
-	l.currentNode = l.currentNode.getParent()
+	expr.append(wdlAnd)
 }
 
-func (l *wdlv1_1Listener) EnterNegate(ctx *parser.NegateContext) {
-	l.branching(
-		newUnaryExpr(
-			ctx.GetStart().GetStart(),
-			ctx.GetStop().GetStop(),
-			ctx.NOT().GetText(),
-		),
-		true,
-	)
-}
-
-func (l *wdlv1_1Listener) ExitNegate(ctx *parser.NegateContext) {
-	u, isUnaryExpr := l.currentNode.(*unaryExpr)
-	if !isUnaryExpr {
-		log.Fatal(
-			newMismatchContextError(
-				ctx.GetStart().GetLine(),
-				ctx.GetStart().GetColumn(),
-				"logical NOT",
-				"unary expression",
-				l.currentNode,
-			),
-		)
-	}
-	u.x = u.getOperand()
-	l.currentNode = l.currentNode.getParent()
-}
-
-func (l *wdlv1_1Listener) EnterUnarysigned(ctx *parser.UnarysignedContext) {
-	var opSym string = "+"
-	if ctx.MINUS() != nil {
-		opSym = "-"
-	}
-	l.branching(
-		newUnaryExpr(
-			ctx.GetStart().GetStart(),
-			ctx.GetStop().GetStop(),
-			opSym,
-		),
-		true,
-	)
-}
-
-func (l *wdlv1_1Listener) ExitUnarysigned(ctx *parser.UnarysignedContext) {
-	u, isUnaryExpr := l.currentNode.(*unaryExpr)
-	if !isUnaryExpr {
-		log.Fatal(
-			newMismatchContextError(
-				ctx.GetStart().GetLine(),
-				ctx.GetStart().GetColumn(),
-				"positive/negative",
-				"unary expression",
-				l.currentNode,
-			),
-		)
-	}
-	u.x = u.getOperand()
-	l.currentNode = l.currentNode.getParent()
-}
-
-func (l *wdlv1_1Listener) EnterLt(ctx *parser.LtContext) {
-	l.branching(
-		newBinaryExpr(
-			ctx.GetStart().GetStart(),
-			ctx.GetStop().GetStop(),
-			ctx.LT().GetText(),
-		),
-		true,
-	)
-}
-
-func (l *wdlv1_1Listener) ExitLt(ctx *parser.LtContext) {
-	ltExpr, isExpr := l.currentNode.(*binaryExpr)
+func (l *wdlv1_1Listener) ExitEqeq(ctx *parser.EqeqContext) {
+	expr, isExpr := l.currentNode.(*expr)
 	if !isExpr {
 		log.Fatal(
 			newMismatchContextError(
 				ctx.GetStart().GetLine(),
 				ctx.GetStart().GetColumn(),
-				"less than comparison",
+				"equality",
 				"expression",
 				l.currentNode,
 			),
 		)
 	}
-	ltExpr.x, ltExpr.y = ltExpr.getOperands()
-	l.currentNode = l.currentNode.getParent()
+	expr.append(wdlEq)
 }
 
-func (l *wdlv1_1Listener) EnterLte(ctx *parser.LteContext) {
-	l.branching(
-		newBinaryExpr(
-			ctx.GetStart().GetStart(),
-			ctx.GetStop().GetStop(),
-			ctx.LTE().GetText(),
-		),
-		true,
-	)
+func (l *wdlv1_1Listener) ExitNeq(ctx *parser.NeqContext) {
+	expr, isExpr := l.currentNode.(*expr)
+	if !isExpr {
+		log.Fatal(
+			newMismatchContextError(
+				ctx.GetStart().GetLine(),
+				ctx.GetStart().GetColumn(),
+				"inequality",
+				"expression",
+				l.currentNode,
+			),
+		)
+	}
+	expr.append(wdlNeq)
 }
 
 func (l *wdlv1_1Listener) ExitLte(ctx *parser.LteContext) {
-	lteExpr, isExpr := l.currentNode.(*binaryExpr)
+	expr, isExpr := l.currentNode.(*expr)
 	if !isExpr {
 		log.Fatal(
 			newMismatchContextError(
 				ctx.GetStart().GetLine(),
 				ctx.GetStart().GetColumn(),
-				"less than or equal to comparison",
+				"less than or equal",
 				"expression",
 				l.currentNode,
 			),
 		)
 	}
-	lteExpr.x, lteExpr.y = lteExpr.getOperands()
-	l.currentNode = l.currentNode.getParent()
-}
-
-func (l *wdlv1_1Listener) EnterGte(ctx *parser.GteContext) {
-	l.branching(
-		newBinaryExpr(
-			ctx.GetStart().GetStart(),
-			ctx.GetStop().GetStop(),
-			ctx.GTE().GetText(),
-		),
-		true,
-	)
+	expr.append(wdlLte)
 }
 
 func (l *wdlv1_1Listener) ExitGte(ctx *parser.GteContext) {
-	gteExpr, isExpr := l.currentNode.(*binaryExpr)
+	expr, isExpr := l.currentNode.(*expr)
 	if !isExpr {
 		log.Fatal(
 			newMismatchContextError(
 				ctx.GetStart().GetLine(),
 				ctx.GetStart().GetColumn(),
-				"greater than or equal to comparison",
+				"grater than or equal",
 				"expression",
 				l.currentNode,
 			),
 		)
 	}
-	gteExpr.x, gteExpr.y = gteExpr.getOperands()
-	l.currentNode = l.currentNode.getParent()
+	expr.append(wdlGte)
 }
 
-func (l *wdlv1_1Listener) EnterGt(ctx *parser.GtContext) {
-	l.branching(
-		newBinaryExpr(
-			ctx.GetStart().GetStart(),
-			ctx.GetStop().GetStop(),
-			ctx.GT().GetText(),
-		),
-		true,
-	)
+func (l *wdlv1_1Listener) ExitLt(ctx *parser.LtContext) {
+	expr, isExpr := l.currentNode.(*expr)
+	if !isExpr {
+		log.Fatal(
+			newMismatchContextError(
+				ctx.GetStart().GetLine(),
+				ctx.GetStart().GetColumn(),
+				"less than",
+				"expression",
+				l.currentNode,
+			),
+		)
+	}
+	expr.append(wdlLt)
 }
 
 func (l *wdlv1_1Listener) ExitGt(ctx *parser.GtContext) {
-	gtExpr, isExpr := l.currentNode.(*binaryExpr)
+	expr, isExpr := l.currentNode.(*expr)
 	if !isExpr {
 		log.Fatal(
 			newMismatchContextError(
@@ -844,108 +613,27 @@ func (l *wdlv1_1Listener) ExitGt(ctx *parser.GtContext) {
 			),
 		)
 	}
-	gtExpr.x, gtExpr.y = gtExpr.getOperands()
-	l.currentNode = l.currentNode.getParent()
+	expr.append(wdlGt)
 }
 
-func (l *wdlv1_1Listener) EnterMul(ctx *parser.MulContext) {
-
-	l.branching(
-		newBinaryExpr(
-			ctx.GetStart().GetStart(),
-			ctx.GetStop().GetStop(),
-			ctx.STAR().GetText(),
-		),
-		true,
-	)
-}
-
-func (l *wdlv1_1Listener) ExitMul(ctx *parser.MulContext) {
-	mulExpr, isExpr := l.currentNode.(*binaryExpr)
+func (l *wdlv1_1Listener) ExitAdd(ctx *parser.AddContext) {
+	expr, isExpr := l.currentNode.(*expr)
 	if !isExpr {
 		log.Fatal(
 			newMismatchContextError(
 				ctx.GetStart().GetLine(),
 				ctx.GetStart().GetColumn(),
-				"multiply",
+				"addition",
 				"expression",
 				l.currentNode,
 			),
 		)
 	}
-	mulExpr.x, mulExpr.y = mulExpr.getOperands()
-	l.currentNode = l.currentNode.getParent()
-}
-
-func (l *wdlv1_1Listener) EnterDivide(ctx *parser.DivideContext) {
-	l.branching(
-		newBinaryExpr(
-			ctx.GetStart().GetStart(),
-			ctx.GetStop().GetStop(),
-			ctx.DIVIDE().GetText(),
-		),
-		true,
-	)
-}
-
-func (l *wdlv1_1Listener) ExitDivide(ctx *parser.DivideContext) {
-	divideExpr, isExpr := l.currentNode.(*binaryExpr)
-	if !isExpr {
-		log.Fatal(
-			newMismatchContextError(
-				ctx.GetStart().GetLine(),
-				ctx.GetStart().GetColumn(),
-				"divide",
-				"expression",
-				l.currentNode,
-			),
-		)
-	}
-	divideExpr.x, divideExpr.y = divideExpr.getOperands()
-	l.currentNode = l.currentNode.getParent()
-}
-
-func (l *wdlv1_1Listener) EnterMod(ctx *parser.ModContext) {
-	l.branching(
-		newBinaryExpr(
-			ctx.GetStart().GetStart(),
-			ctx.GetStop().GetStop(),
-			ctx.MOD().GetText(),
-		),
-		true,
-	)
-}
-
-func (l *wdlv1_1Listener) ExitMod(ctx *parser.ModContext) {
-	modExpr, isExpr := l.currentNode.(*binaryExpr)
-	if !isExpr {
-		log.Fatal(
-			newMismatchContextError(
-				ctx.GetStart().GetLine(),
-				ctx.GetStart().GetColumn(),
-				"modulo",
-				"expression",
-				l.currentNode,
-			),
-		)
-	}
-	modExpr.x, modExpr.y = modExpr.getOperands()
-	l.currentNode = l.currentNode.getParent()
-}
-
-func (l *wdlv1_1Listener) EnterSub(ctx *parser.SubContext) {
-	l.branching(
-		newBinaryExpr(
-			ctx.GetStart().GetStart(),
-			ctx.GetStop().GetStop(),
-			ctx.MINUS().GetText(),
-		),
-		true,
-	)
+	expr.append(wdlAdd)
 }
 
 func (l *wdlv1_1Listener) ExitSub(ctx *parser.SubContext) {
-	subExpr, isExpr := l.currentNode.(*binaryExpr)
+	expr, isExpr := l.currentNode.(*expr)
 	if !isExpr {
 		log.Fatal(
 			newMismatchContextError(
@@ -957,18 +645,64 @@ func (l *wdlv1_1Listener) ExitSub(ctx *parser.SubContext) {
 			),
 		)
 	}
-	subExpr.x, subExpr.y = subExpr.getOperands()
-	l.currentNode = l.currentNode.getParent()
+	expr.append(wdlSub)
+}
+
+func (l *wdlv1_1Listener) ExitMul(ctx *parser.MulContext) {
+	expr, isExpr := l.currentNode.(*expr)
+	if !isExpr {
+		log.Fatal(
+			newMismatchContextError(
+				ctx.GetStart().GetLine(),
+				ctx.GetStart().GetColumn(),
+				"multiplication",
+				"expression",
+				l.currentNode,
+			),
+		)
+	}
+	expr.append(wdlMul)
+}
+
+func (l *wdlv1_1Listener) ExitDivide(ctx *parser.DivideContext) {
+	expr, isExpr := l.currentNode.(*expr)
+	if !isExpr {
+		log.Fatal(
+			newMismatchContextError(
+				ctx.GetStart().GetLine(),
+				ctx.GetStart().GetColumn(),
+				"division",
+				"expression",
+				l.currentNode,
+			),
+		)
+	}
+	expr.append(wdlDiv)
+}
+
+func (l *wdlv1_1Listener) ExitMod(ctx *parser.ModContext) {
+	expr, isExpr := l.currentNode.(*expr)
+	if !isExpr {
+		log.Fatal(
+			newMismatchContextError(
+				ctx.GetStart().GetLine(),
+				ctx.GetStart().GetColumn(),
+				"remainder",
+				"expression",
+				l.currentNode,
+			),
+		)
+	}
+	expr.append(wdlMod)
 }
 
 func (l *wdlv1_1Listener) EnterExpression_group(
 	ctx *parser.Expression_groupContext,
 ) {
 	l.branching(
-		newUnaryExpr(
+		newGenNode(
 			ctx.GetStart().GetStart(),
 			ctx.GetStop().GetStop(),
-			"()",
 		),
 		true,
 	)
@@ -977,18 +711,112 @@ func (l *wdlv1_1Listener) EnterExpression_group(
 func (l *wdlv1_1Listener) ExitExpression_group(
 	ctx *parser.Expression_groupContext,
 ) {
-	u, isUnaryExpr := l.currentNode.(*unaryExpr)
-	if !isUnaryExpr {
+	var childExprs []*expr
+	for _, child := range l.currentNode.getChildren() {
+		if ce, isExpr := child.(*expr); isExpr {
+			childExprs = append(childExprs, ce)
+		}
+	}
+	if len(childExprs) != 1 {
+		log.Fatalf(
+			"expression group expects exactly 1 child expression, found %v",
+			len(childExprs),
+		)
+	}
+	l.currentNode = l.currentNode.getParent()
+	expr, isExpr := l.currentNode.(*expr)
+	if !isExpr {
 		log.Fatal(
 			newMismatchContextError(
 				ctx.GetStart().GetLine(),
 				ctx.GetStart().GetColumn(),
-				"expression group",
-				"unary expression",
+				"grouping",
+				"expression",
 				l.currentNode,
 			),
 		)
 	}
-	u.x = u.getOperand()
+	expr.extend(childExprs[0])
+}
+
+func (l *wdlv1_1Listener) EnterNegate(ctx *parser.NegateContext) {
+	l.branching(
+		newGenNode(
+			ctx.GetStart().GetStart(),
+			ctx.GetStop().GetStop(),
+		),
+		true,
+	)
+}
+
+func (l *wdlv1_1Listener) ExitNegate(ctx *parser.NegateContext) {
+	var childExprs []*expr
+	for _, child := range l.currentNode.getChildren() {
+		if ce, isExpr := child.(*expr); isExpr {
+			childExprs = append(childExprs, ce)
+		}
+	}
+	if len(childExprs) != 1 {
+		log.Fatalf(
+			"logical not expects exactly 1 child expression, found %v",
+			len(childExprs),
+		)
+	}
 	l.currentNode = l.currentNode.getParent()
+	expr, isExpr := l.currentNode.(*expr)
+	if !isExpr {
+		log.Fatal(
+			newMismatchContextError(
+				ctx.GetStart().GetLine(),
+				ctx.GetStart().GetColumn(),
+				"logical NOT",
+				"expression",
+				l.currentNode,
+			),
+		)
+	}
+	expr.extend(childExprs[0])
+	expr.append(wdlNot)
+}
+
+func (l *wdlv1_1Listener) EnterUnarysigned(ctx *parser.UnarysignedContext) {
+	l.branching(
+		newGenNode(
+			ctx.GetStart().GetStart(),
+			ctx.GetStop().GetStop(),
+		),
+		true,
+	)
+}
+
+func (l *wdlv1_1Listener) ExitUnarysigned(ctx *parser.UnarysignedContext) {
+	var childExprs []*expr
+	for _, child := range l.currentNode.getChildren() {
+		if ce, isExpr := child.(*expr); isExpr {
+			childExprs = append(childExprs, ce)
+		}
+	}
+	if len(childExprs) != 1 {
+		log.Fatalf(
+			"arithmetic negation expects exactly 1 child expression, found %v",
+			len(childExprs),
+		)
+	}
+	l.currentNode = l.currentNode.getParent()
+	expr, isExpr := l.currentNode.(*expr)
+	if !isExpr {
+		log.Fatal(
+			newMismatchContextError(
+				ctx.GetStart().GetLine(),
+				ctx.GetStart().GetColumn(),
+				"unary negation",
+				"expression",
+				l.currentNode,
+			),
+		)
+	}
+	expr.extend(childExprs[0])
+	if ctx.MINUS() != nil {
+		expr.append(wdlNeg)
+	}
 }

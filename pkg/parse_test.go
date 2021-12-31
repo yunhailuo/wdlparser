@@ -3,7 +3,15 @@ package wdlparser
 import (
 	"reflect"
 	"testing"
+
+	"github.com/google/go-cmp/cmp"
+	"github.com/google/go-cmp/cmp/cmpopts"
 )
+
+var commonCmpopts = cmp.Options{
+	cmp.AllowUnexported(genNode{}, namedNode{}),
+	cmpopts.IgnoreFields(genNode{}, "parent", "children"),
+}
 
 func TestVersion(t *testing.T) {
 	inputPath := "testdata/version1_1.wdl"
@@ -88,47 +96,67 @@ func TestWorkflowPrivateDeclaration(t *testing.T) {
 		)
 	}
 
-	prvtDecl1 := newDecl(47, 64, "s", "String", `"Hello"`)
-	prvtDecl1.setParent(result.Workflow)
-	expectedPrivateDecl := []*decl{prvtDecl1}
+	expectedPrivateDecl := []*decl{
+		{
+			genNode:    genNode{start: 47, end: 64},
+			identifier: "s",
+			initialization: &expr{
+				genNode: genNode{start: 58, end: 64},
+			},
+			typ:   "String",
+			value: `"Hello"`,
+		},
+	}
 	resultPrivateDecl := result.Workflow.PrvtDecls
-	if !reflect.DeepEqual(resultPrivateDecl, expectedPrivateDecl) {
-		t.Errorf(
-			"Found workflow private declaration %v, expect %v",
-			resultPrivateDecl, expectedPrivateDecl,
-		)
+	cmpOptions := append(
+		commonCmpopts,
+		cmp.AllowUnexported(decl{}, expr{}),
+		cmpopts.IgnoreFields(expr{}, "lock"),
+	)
+	if diff := cmp.Diff(
+		expectedPrivateDecl, resultPrivateDecl, cmpOptions...,
+	); diff != "" {
+		t.Errorf("unexpected workflow private declaration:\n%s", diff)
 	}
 }
 
 func TestWorkflowCall(t *testing.T) {
 	inputPath := "testdata/workflow_call.wdl"
 	result, err := Antlr4Parse(inputPath)
-	expectedFirstCall := NewCall(39, 150, "Greeting")
-	expectedFirstCall.alias = "hello"
-	expectedFirstCall.Inputs = []*keyValue{
-		newKeyValue(91, 113, "first_name", "first_name"),
-		newKeyValue(128, 144, "last_name", `"Luo"`),
-	}
-	expectedSecondCall := NewCall(156, 213, "Goodbye")
-	expectedSecondCall.After = "hello"
-	expectedSecondCall.Inputs = []*keyValue{
-		newKeyValue(190, 210, "first_name", `"Yunhai"`),
-	}
-	expectCalls := []*Call{expectedFirstCall, expectedSecondCall}
 	if err != nil {
 		t.Errorf(
 			"Found %d errors in %q, expect no errors", len(err), inputPath,
 		)
 	}
-	resultCalls := result.Workflow.Calls
-	for _, c := range expectCalls {
-		c.setParent(result.Workflow)
+
+	expectCalls := []*Call{
+		{
+			namedNode: namedNode{
+				genNode: genNode{start: 39, end: 150},
+				name:    "Greeting",
+				alias:   "hello",
+			},
+			Inputs: []*keyValue{
+				newKeyValue(91, 113, "first_name", "first_name"),
+				newKeyValue(128, 144, "last_name", `"Luo"`),
+			},
+		},
+		{
+			namedNode: namedNode{
+				genNode: genNode{start: 156, end: 213}, name: "Goodbye",
+			},
+			After: "hello",
+			Inputs: []*keyValue{
+				newKeyValue(190, 210, "first_name", `"Yunhai"`),
+			},
+		},
 	}
-	if !reflect.DeepEqual(resultCalls, expectCalls) {
-		t.Errorf(
-			"Found inputs for the first call %v, expect %v",
-			resultCalls, expectCalls,
-		)
+	resultCalls := result.Workflow.Calls
+	cmpOptions := append(commonCmpopts, cmp.AllowUnexported(Call{}, keyValue{}))
+	if diff := cmp.Diff(
+		expectCalls, resultCalls, cmpOptions...,
+	); diff != "" {
+		t.Errorf("unexpected workflow calls:\n%s", diff)
 	}
 }
 
@@ -141,15 +169,27 @@ func TestWorkflowOutput(t *testing.T) {
 		)
 	}
 
-	output1 := newDecl(52, 87, "output_file", "File", `"/Path/to/output"`)
-	output1.setParent(result.Workflow.Outputs)
-	expectedOutput := []*decl{output1}
+	expectedOutput := []*decl{
+		{
+			genNode:    genNode{start: 52, end: 87},
+			identifier: "output_file",
+			initialization: &expr{
+				genNode: genNode{start: 71, end: 87},
+			},
+			typ:   "File",
+			value: `"/Path/to/output"`,
+		},
+	}
 	resultOutput := result.Workflow.Outputs.decls
-	if !reflect.DeepEqual(resultOutput, expectedOutput) {
-		t.Errorf(
-			"Found workflow output %v, expect %v",
-			resultOutput, expectedOutput,
-		)
+	cmpOptions := append(
+		commonCmpopts,
+		cmp.AllowUnexported(decl{}, expr{}),
+		cmpopts.IgnoreFields(expr{}, "lock"),
+	)
+	if diff := cmp.Diff(
+		expectedOutput, resultOutput, cmpOptions...,
+	); diff != "" {
+		t.Errorf("unexpected workflow calls:\n%s", diff)
 	}
 }
 
@@ -204,15 +244,27 @@ func TestTaskInput(t *testing.T) {
 		)
 	}
 
-	input1 := newDecl(46, 66, "name", "String", `"World"`)
-	input1.setParent(result.Tasks[0].Inputs)
-	expectedInput := []*decl{input1}
+	expectedInput := []*decl{
+		{
+			genNode:    genNode{start: 46, end: 66},
+			identifier: "name",
+			initialization: &expr{
+				genNode: genNode{start: 60, end: 66},
+			},
+			typ:   "String",
+			value: `"World"`,
+		},
+	}
 	resultInput := result.Tasks[0].Inputs.decls
-	if !reflect.DeepEqual(resultInput, expectedInput) {
-		t.Errorf(
-			"Found task input %v, expect %v",
-			resultInput, expectedInput,
-		)
+	cmpOptions := append(
+		commonCmpopts,
+		cmp.AllowUnexported(decl{}, expr{}),
+		cmpopts.IgnoreFields(expr{}, "lock"),
+	)
+	if diff := cmp.Diff(
+		expectedInput, resultInput, cmpOptions...,
+	); diff != "" {
+		t.Errorf("unexpected workflow calls:\n%s", diff)
 	}
 }
 
@@ -225,15 +277,27 @@ func TestTaskPrivateDeclaration(t *testing.T) {
 		)
 	}
 
-	prvtDecl1 := newDecl(43, 60, "s", "String", `"Hello"`)
-	prvtDecl1.setParent(result.Tasks[0])
-	expectedPrivateDecl := []*decl{prvtDecl1}
+	expectedPrivateDecl := []*decl{
+		{
+			genNode:    genNode{start: 43, end: 60},
+			identifier: "s",
+			initialization: &expr{
+				genNode: genNode{start: 54, end: 60},
+			},
+			typ:   "String",
+			value: `"Hello"`,
+		},
+	}
 	resultPrivateDecl := result.Tasks[0].PrvtDecls
-	if !reflect.DeepEqual(resultPrivateDecl, expectedPrivateDecl) {
-		t.Errorf(
-			"Found task private declaration %v, expect %v",
-			resultPrivateDecl, expectedPrivateDecl,
-		)
+	cmpOptions := append(
+		commonCmpopts,
+		cmp.AllowUnexported(decl{}, expr{}),
+		cmpopts.IgnoreFields(expr{}, "lock"),
+	)
+	if diff := cmp.Diff(
+		expectedPrivateDecl, resultPrivateDecl, cmpOptions...,
+	); diff != "" {
+		t.Errorf("unexpected workflow calls:\n%s", diff)
 	}
 }
 
@@ -266,15 +330,27 @@ func TestTaskOutput(t *testing.T) {
 		)
 	}
 
-	output1 := newDecl(47, 73, "output_file", "File", "stdout()")
-	output1.setParent(result.Tasks[0].Outputs)
-	expectedOutput := []*decl{output1}
+	expectedOutput := []*decl{
+		{
+			genNode:    genNode{start: 47, end: 73},
+			identifier: "output_file",
+			initialization: &expr{
+				genNode: genNode{start: 66, end: 73},
+			},
+			typ:   "File",
+			value: "stdout()",
+		},
+	}
 	resultOutput := result.Tasks[0].Outputs.decls
-	if !reflect.DeepEqual(resultOutput, expectedOutput) {
-		t.Errorf(
-			"Found task output %v, expect %v",
-			resultOutput, expectedOutput,
-		)
+	cmpOptions := append(
+		commonCmpopts,
+		cmp.AllowUnexported(decl{}, expr{}),
+		cmpopts.IgnoreFields(expr{}, "lock"),
+	)
+	if diff := cmp.Diff(
+		expectedOutput, resultOutput, cmpOptions...,
+	); diff != "" {
+		t.Errorf("unexpected workflow calls:\n%s", diff)
 	}
 }
 
