@@ -73,9 +73,9 @@ func TestWorkflowInput(t *testing.T) {
 		)
 	}
 
-	input1 := newDecl(50, 65, "input_str", "String", "")
+	input1 := newDecl(50, 65, "input_str", "String")
 	input1.setParent(result.Workflow.Inputs)
-	input2 := newDecl(75, 94, "input_file_path", "File", "")
+	input2 := newDecl(75, 94, "input_file_path", "File")
 	input2.setParent(result.Workflow.Inputs)
 	expectedInput := []*decl{input1, input2}
 	resultInput := result.Workflow.Inputs.decls
@@ -103,8 +103,7 @@ func TestWorkflowPrivateDeclaration(t *testing.T) {
 			initialization: &expr{
 				genNode: genNode{start: 58, end: 64},
 			},
-			typ:   "String",
-			value: `"Hello"`,
+			typ: "String",
 		},
 	}
 	resultPrivateDecl := result.Workflow.PrvtDecls
@@ -176,8 +175,7 @@ func TestWorkflowOutput(t *testing.T) {
 			initialization: &expr{
 				genNode: genNode{start: 71, end: 87},
 			},
-			typ:   "File",
-			value: `"/Path/to/output"`,
+			typ: "File",
 		},
 	}
 	resultOutput := result.Workflow.Outputs.decls
@@ -251,8 +249,7 @@ func TestTaskInput(t *testing.T) {
 			initialization: &expr{
 				genNode: genNode{start: 60, end: 66},
 			},
-			typ:   "String",
-			value: `"World"`,
+			typ: "String",
 		},
 	}
 	resultInput := result.Tasks[0].Inputs.decls
@@ -284,8 +281,7 @@ func TestTaskPrivateDeclaration(t *testing.T) {
 			initialization: &expr{
 				genNode: genNode{start: 54, end: 60},
 			},
-			typ:   "String",
-			value: `"Hello"`,
+			typ: "String",
 		},
 	}
 	resultPrivateDecl := result.Tasks[0].PrvtDecls
@@ -337,8 +333,7 @@ func TestTaskOutput(t *testing.T) {
 			initialization: &expr{
 				genNode: genNode{start: 66, end: 73},
 			},
-			typ:   "File",
-			value: "stdout()",
+			typ: "File",
 		},
 	}
 	resultOutput := result.Tasks[0].Outputs.decls
