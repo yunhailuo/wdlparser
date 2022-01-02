@@ -13,223 +13,231 @@ import (
 	parser "github.com/yunhailuo/wdlparser/pkg/wdlv1_1"
 )
 
+type nodeKindStack []nodeKind
+
+func (nks *nodeKindStack) push(nk nodeKind) {
+	*nks = append(*nks, nk)
+}
+
+func (nks *nodeKindStack) pop() {
+	stackDepth := len(*nks)
+	if stackDepth > 0 {
+		// Won't zero the popped element since nodeKind is limited and small
+		*nks = (*nks)[:stackDepth-1]
+		return
+	}
+	log.Fatalf("pop error: node kind stack %v is empty", *nks)
+}
+
+func (nks *nodeKindStack) contains(nk nodeKind) bool {
+	for _, e := range *nks {
+		if e == nk {
+			return true
+		}
+	}
+	return false
+}
+
 type wdlv1_1Listener struct {
 	*parser.BaseWdlV1_1ParserListener
-	wdl         *WDL
-	currentNode node
+	wdl        *WDL
+	astContext struct {
+		kindStack       nodeKindStack
+		importNode      *importSpec
+		workflowNode    *Workflow
+		callNode        *Call
+		taskNode        *Task
+		declarationList *[]*decl
+		exprNode        *exprRPN
+		metadataList    *map[string]string
+	}
 }
 
 func newWdlv1_1Listener(wdl *WDL) *wdlv1_1Listener {
-	return &wdlv1_1Listener{wdl: wdl, currentNode: wdl}
+	return &wdlv1_1Listener{wdl: wdl}
 }
 
-// This branching method add a new node as a child of current node
-// and set current node to the new node
-func (l *wdlv1_1Listener) branching(child node, checkout bool) {
-	child.setParent(l.currentNode)
-	err := l.currentNode.addChild(child)
-	if err != nil {
-		log.Fatal(err)
-	}
-	if checkout {
-		l.currentNode = child
+// Manage AST context with listener
+func (l *wdlv1_1Listener) EnterEveryRule(ctx antlr.ParserRuleContext) {
+	switch c := ctx.(type) {
+	case *parser.DocumentContext:
+		l.astContext.kindStack.push(doc)
+	case *parser.Document_elementContext:
+		l.astContext.declarationList = &l.wdl.Structs
+	case *parser.Import_docContext:
+		l.astContext.kindStack.push(imp)
+		n := newImportSpec(
+			c.GetStart().GetStart(),
+			c.GetStop().GetStop(),
+			strings.Trim(c.R_string().GetText(), `"`),
+		)
+		n.setParent(l.wdl)
+		l.wdl.Imports = append(l.wdl.Imports, n)
+		l.astContext.importNode = n
+	case *parser.WorkflowContext:
+		l.astContext.kindStack.push(wfl)
+		l.wdl.Workflow = NewWorkflow(
+			c.GetStart().GetStart(),
+			c.GetStop().GetStop(),
+			c.Identifier().GetText(),
+		)
+		l.wdl.Workflow.setParent(l.wdl)
+		l.astContext.workflowNode = l.wdl.Workflow
+	case *parser.Workflow_inputContext:
+		l.astContext.kindStack.push(ipt)
+		l.astContext.declarationList = &l.astContext.workflowNode.Inputs
+	case *parser.Workflow_outputContext:
+		l.astContext.kindStack.push(opt)
+		l.astContext.declarationList = &l.astContext.workflowNode.Outputs
+	case *parser.Inner_workflow_elementContext:
+		l.astContext.declarationList = &l.astContext.workflowNode.PrvtDecls
+	case *parser.CallContext:
+		l.astContext.kindStack.push(cal)
+		n := NewCall(
+			c.GetStart().GetStart(),
+			c.GetStop().GetStop(),
+			"",
+		)
+		n.setParent(l.astContext.workflowNode)
+		l.astContext.workflowNode.Calls = append(
+			l.astContext.workflowNode.Calls, n,
+		)
+		l.astContext.callNode = n
+	case *parser.TaskContext:
+		l.astContext.kindStack.push(tsk)
+		n := NewTask(
+			c.GetStart().GetStart(),
+			c.GetStop().GetStop(),
+			c.Identifier().GetText(),
+		)
+		n.setParent(l.wdl)
+		l.wdl.Tasks = append(l.wdl.Tasks, n)
+		l.astContext.taskNode = n
+		l.astContext.declarationList = &l.astContext.taskNode.PrvtDecls
+	case *parser.Task_inputContext:
+		l.astContext.kindStack.push(ipt)
+		l.astContext.declarationList = &l.astContext.taskNode.Inputs
+	case *parser.Task_outputContext:
+		l.astContext.kindStack.push(opt)
+		l.astContext.declarationList = &l.astContext.taskNode.Outputs
+	case *parser.MetaContext:
+		l.astContext.kindStack.push(mtd)
+		if l.astContext.kindStack.contains(wfl) {
+			l.astContext.metadataList = &l.astContext.workflowNode.Meta
+		} else if l.astContext.kindStack.contains(tsk) {
+			l.astContext.metadataList = &l.astContext.taskNode.Meta
+		} else {
+			log.Fatalf(
+				"enter metadata parser context %v"+
+					" while AST context is outside workflow or task", c,
+			)
+		}
+	case *parser.Parameter_metaContext:
+		l.astContext.kindStack.push(pmt)
+		if l.astContext.kindStack.contains(wfl) {
+			l.astContext.metadataList = &l.astContext.workflowNode.ParameterMeta
+		} else if l.astContext.kindStack.contains(tsk) {
+			l.astContext.metadataList = &l.astContext.taskNode.ParameterMeta
+		} else {
+			log.Fatalf(
+				"enter parameter metadata parser context %v"+
+					" while AST context is outside workflow or task", c,
+			)
+		}
+	case *parser.Bound_declsContext:
+		n := newDecl(
+			c.GetStart().GetStart(),
+			c.GetStop().GetStop(),
+			c.Identifier().GetText(),
+			c.Wdl_type().GetText(),
+		)
+		l.astContext.exprNode = &n.initialization
+		*l.astContext.declarationList = append(
+			*l.astContext.declarationList,
+			n,
+		)
+	// TODO: fix the following case
+	case *parser.Call_inputContext:
+		l.astContext.exprNode = &exprRPN{}
 	}
 }
 
+func (l *wdlv1_1Listener) ExitEveryRule(ctx antlr.ParserRuleContext) {
+	switch ctx.(type) {
+	case *parser.DocumentContext:
+		l.astContext.kindStack.pop()
+	case *parser.Document_elementContext:
+		l.astContext.declarationList = nil
+	case *parser.Import_docContext:
+		l.astContext.kindStack.pop()
+		l.astContext.importNode = nil
+	case *parser.WorkflowContext:
+		l.astContext.kindStack.pop()
+		l.astContext.workflowNode = nil
+		l.astContext.declarationList = nil
+	case *parser.Workflow_inputContext:
+		l.astContext.kindStack.pop()
+	case *parser.Workflow_outputContext:
+		l.astContext.kindStack.pop()
+	case *parser.Inner_workflow_elementContext:
+		l.astContext.declarationList = nil
+	case *parser.CallContext:
+		l.astContext.kindStack.pop()
+		l.astContext.callNode = nil
+	case *parser.TaskContext:
+		l.astContext.kindStack.pop()
+		l.astContext.taskNode = nil
+		l.astContext.declarationList = &l.wdl.Structs
+	case *parser.Task_inputContext:
+		l.astContext.kindStack.pop()
+		l.astContext.declarationList = &l.astContext.taskNode.PrvtDecls
+	case *parser.Task_outputContext:
+		l.astContext.kindStack.pop()
+		l.astContext.declarationList = &l.astContext.taskNode.PrvtDecls
+	case *parser.MetaContext:
+		l.astContext.kindStack.pop()
+		l.astContext.metadataList = nil
+	case *parser.Parameter_metaContext:
+		l.astContext.kindStack.pop()
+		l.astContext.metadataList = nil
+	case *parser.Bound_declsContext:
+		l.astContext.exprNode = nil
+	case *parser.Call_inputContext:
+		l.astContext.exprNode = nil
+	}
+}
+
+// Parse WDL version
 func (l *wdlv1_1Listener) ExitVersion(ctx *parser.VersionContext) {
 	l.wdl.Version = ctx.ReleaseVersion().GetText()
 }
 
-func (l *wdlv1_1Listener) EnterImport_doc(ctx *parser.Import_docContext) {
-	l.branching(
-		newImportSpec(
-			ctx.GetStart().GetStart(),
-			ctx.GetStop().GetStop(),
-			strings.Trim(ctx.R_string().GetText(), `"`),
-		),
-		true,
-	)
-}
-
-func (l *wdlv1_1Listener) ExitImport_doc(ctx *parser.Import_docContext) {
-	l.currentNode = l.currentNode.getParent()
-}
-
+// Parse import
 func (l *wdlv1_1Listener) ExitImport_as(ctx *parser.Import_asContext) {
-	currNode, isImportSpec := l.currentNode.(*importSpec)
-	if !isImportSpec {
-		log.Fatal(
-			newMismatchContextError(
-				ctx.GetStart().GetLine(),
-				ctx.GetStart().GetColumn(),
-				"import statement",
-				"importSpec",
-				l.currentNode,
-			),
-		)
-	}
-	currNode.alias = ctx.Identifier().GetText()
+	l.astContext.importNode.alias = ctx.Identifier().GetText()
 }
 
 func (l *wdlv1_1Listener) ExitImport_alias(ctx *parser.Import_aliasContext) {
-	currNode, isImportSpec := l.currentNode.(*importSpec)
-	if !isImportSpec {
-		log.Fatal(
-			newMismatchContextError(
-				ctx.GetStart().GetLine(),
-				ctx.GetStart().GetColumn(),
-				"import statement",
-				"importSpec",
-				l.currentNode,
-			),
-		)
-	}
-	currNode.importAliases[ctx.Identifier(0).GetText()] = ctx.Identifier(
-		1,
-	).GetText()
-
+	k, v := ctx.Identifier(0).GetText(), ctx.Identifier(1).GetText()
+	l.astContext.importNode.importAliases[k] = v
 }
 
-func (l *wdlv1_1Listener) EnterUnbound_decls(ctx *parser.Unbound_declsContext) {
-	l.branching(
-		newDecl(
-			ctx.GetStart().GetStart(),
-			ctx.GetStop().GetStop(),
-			ctx.Identifier().GetText(),
-			ctx.Wdl_type().GetText(),
-		),
-		true,
-	)
-}
-
-func (l *wdlv1_1Listener) ExitUnbound_decls(ctx *parser.Unbound_declsContext) {
-	l.currentNode = l.currentNode.getParent()
-}
-
-func (l *wdlv1_1Listener) EnterBound_decls(ctx *parser.Bound_declsContext) {
-	l.branching(
-		newDecl(
-			ctx.GetStart().GetStart(),
-			ctx.GetStop().GetStop(),
-			ctx.Identifier().GetText(),
-			ctx.Wdl_type().GetText(),
-		),
-		true,
-	)
-}
-
-func (l *wdlv1_1Listener) ExitBound_decls(ctx *parser.Bound_declsContext) {
-	l.currentNode = l.currentNode.getParent()
-}
-
-func (l *wdlv1_1Listener) EnterWorkflow(ctx *parser.WorkflowContext) {
-	l.branching(
-		NewWorkflow(
-			ctx.GetStart().GetStart(),
-			ctx.GetStop().GetStop(),
-			ctx.Identifier().GetText(),
-		),
-		true,
-	)
-}
-
-func (l *wdlv1_1Listener) ExitWorkflow(ctx *parser.WorkflowContext) {
-	l.currentNode = l.currentNode.getParent()
-}
-
-func (l *wdlv1_1Listener) EnterWorkflow_input(
-	ctx *parser.Workflow_inputContext,
-) {
-	l.branching(
-		newInputDecls(ctx.GetStart().GetLine(), ctx.GetStart().GetColumn()),
-		true,
-	)
-}
-
-func (l *wdlv1_1Listener) ExitWorkflow_input(
-	ctx *parser.Workflow_inputContext,
-) {
-	l.currentNode = l.currentNode.getParent()
-}
-
-func (l *wdlv1_1Listener) EnterCall(ctx *parser.CallContext) {
-	l.branching(
-		NewCall(
-			ctx.GetStart().GetStart(),
-			ctx.GetStop().GetStop(),
-			"",
-		),
-		true,
-	)
-}
-
-func (l *wdlv1_1Listener) ExitCall(ctx *parser.CallContext) {
-	l.currentNode = l.currentNode.getParent()
-}
-
+// Parse workflow elements
 func (l *wdlv1_1Listener) ExitCall_name(ctx *parser.Call_nameContext) {
-	call, isCall := l.currentNode.(*Call)
-	if !isCall {
-		log.Fatal(
-			newMismatchContextError(
-				ctx.GetStart().GetLine(),
-				ctx.GetStart().GetColumn(),
-				"call name",
-				"call",
-				l.currentNode,
-			),
-		)
-	}
-	call.name = ctx.GetText()
+	l.astContext.callNode.name = ctx.GetText()
 }
 
 func (l *wdlv1_1Listener) ExitCall_alias(ctx *parser.Call_aliasContext) {
-	call, isCall := l.currentNode.(*Call)
-	if !isCall {
-		log.Fatal(
-			newMismatchContextError(
-				ctx.GetStart().GetLine(),
-				ctx.GetStart().GetColumn(),
-				"call alias",
-				"call",
-				l.currentNode,
-			),
-		)
-	}
-	call.alias = ctx.Identifier().GetText()
+	l.astContext.callNode.alias = ctx.Identifier().GetText()
 }
 
 func (l *wdlv1_1Listener) ExitCall_after(ctx *parser.Call_afterContext) {
-	call, isCall := l.currentNode.(*Call)
-	if !isCall {
-		log.Fatal(
-			newMismatchContextError(
-				ctx.GetStart().GetLine(),
-				ctx.GetStart().GetColumn(),
-				"call after",
-				"call",
-				l.currentNode,
-			),
-		)
-	}
-	call.After = ctx.Identifier().GetText()
+	l.astContext.callNode.After = ctx.Identifier().GetText()
 }
 
 func (l *wdlv1_1Listener) ExitCall_input(ctx *parser.Call_inputContext) {
-	call, isCall := l.currentNode.(*Call)
-	if !isCall {
-		log.Fatal(
-			newMismatchContextError(
-				ctx.GetStart().GetLine(),
-				ctx.GetStart().GetColumn(),
-				"call input",
-				"call",
-				l.currentNode,
-			),
-		)
-	}
-	call.Inputs = append(
-		call.Inputs,
+	l.astContext.callNode.Inputs = append(
+		l.astContext.callNode.Inputs,
 		newKeyValue(
 			ctx.GetStart().GetStart(),
 			ctx.GetStop().GetStop(),
@@ -239,162 +247,40 @@ func (l *wdlv1_1Listener) ExitCall_input(ctx *parser.Call_inputContext) {
 	)
 }
 
-func (l *wdlv1_1Listener) EnterWorkflow_output(
-	ctx *parser.Workflow_outputContext,
-) {
-	l.branching(
-		newOutputDecls(ctx.GetStart().GetLine(), ctx.GetStart().GetColumn()),
-		true,
-	)
-}
-
-func (l *wdlv1_1Listener) ExitWorkflow_output(
-	ctx *parser.Workflow_outputContext,
-) {
-	l.currentNode = l.currentNode.getParent()
-}
-
-func (l *wdlv1_1Listener) EnterMeta(ctx *parser.MetaContext) {
-	l.branching(
-		newMetaSpecs(ctx.GetStart().GetLine(), ctx.GetStart().GetColumn()),
-		true,
-	)
-}
-
-func (l *wdlv1_1Listener) ExitMeta(ctx *parser.MetaContext) {
-	l.currentNode = l.currentNode.getParent()
-}
-
-func (l *wdlv1_1Listener) EnterParameter_meta(
-	ctx *parser.Parameter_metaContext,
-) {
-	l.branching(
-		newParameterMetaSpecs(
-			ctx.GetStart().GetLine(), ctx.GetStart().GetColumn(),
-		),
-		true,
-	)
-}
-
-func (l *wdlv1_1Listener) ExitParameter_meta(
-	ctx *parser.Parameter_metaContext,
-) {
-	l.currentNode = l.currentNode.getParent()
-}
-
-func (l *wdlv1_1Listener) EnterMeta_kv(ctx *parser.Meta_kvContext) {
-	switch n := l.currentNode.(type) {
-	case *metaSpec:
-		n.keyValues[ctx.MetaIdentifier().GetText()] = ctx.Meta_value().GetText()
-	case *parameterMetaSpec:
-		n.keyValues[ctx.MetaIdentifier().GetText()] = ctx.Meta_value().GetText()
-	default:
-		log.Fatal(
-			newMismatchContextError(
-				ctx.GetStart().GetLine(),
-				ctx.GetStart().GetColumn(),
-				"metadata key/value pairs",
-				"metaSpec or parameterMetaSpec",
-				l.currentNode.getParent(),
-			),
-		)
-	}
-}
-
-func (l *wdlv1_1Listener) EnterTask(ctx *parser.TaskContext) {
-	l.branching(
-		NewTask(
-			ctx.GetStart().GetStart(),
-			ctx.GetStop().GetStop(),
-			ctx.Identifier().GetText(),
-		),
-		true,
-	)
-}
-
-func (l *wdlv1_1Listener) ExitTask(ctx *parser.TaskContext) {
-	l.currentNode = l.currentNode.getParent()
-}
-
-func (l *wdlv1_1Listener) EnterTask_input(
-	ctx *parser.Task_inputContext,
-) {
-	l.branching(
-		newInputDecls(ctx.GetStart().GetLine(), ctx.GetStart().GetColumn()),
-		true,
-	)
-}
-
-func (l *wdlv1_1Listener) ExitTask_input(
-	ctx *parser.Task_inputContext,
-) {
-	l.currentNode = l.currentNode.getParent()
-}
-
+// Parse a task
 // TODO: wrong parsing to be fixed
 func (l *wdlv1_1Listener) EnterTask_command(ctx *parser.Task_commandContext) {
-	if task, isTask := l.currentNode.(*Task); isTask {
-		task.Command = append(
-			task.Command, ctx.Task_command_string_part().GetText(),
-		)
-	}
-}
-
-// TODO: wrong parsing to be fixed
-func (l *wdlv1_1Listener) ExitTask_command_expr_with_string(
-	ctx *parser.Task_command_expr_with_stringContext,
-) {
-	if task, isTask := l.currentNode.(*Task); isTask {
-		task.Command = append(
-			task.Command,
-			ctx.Task_command_expr_part().GetText(),
-			ctx.Task_command_string_part().GetText(),
-		)
-	}
-}
-
-func (l *wdlv1_1Listener) EnterTask_output(
-	ctx *parser.Task_outputContext,
-) {
-	l.branching(
-		newOutputDecls(ctx.GetStart().GetLine(), ctx.GetStart().GetColumn()),
-		true,
+	l.astContext.taskNode.Command = append(
+		l.astContext.taskNode.Command,
+		ctx.Task_command_string_part().GetText(),
 	)
-}
-
-func (l *wdlv1_1Listener) ExitTask_output(
-	ctx *parser.Task_outputContext,
-) {
-	l.currentNode = l.currentNode.getParent()
-}
-
-func (l *wdlv1_1Listener) EnterTask_runtime(ctx *parser.Task_runtimeContext) {
-	l.branching(
-		newRuntimeSpecs(ctx.GetStart().GetLine(), ctx.GetStart().GetColumn()),
-		true,
-	)
-}
-
-func (l *wdlv1_1Listener) ExitTask_runtime(ctx *parser.Task_runtimeContext) {
-	l.currentNode = l.currentNode.getParent()
 }
 
 func (l *wdlv1_1Listener) ExitTask_runtime_kv(
 	ctx *parser.Task_runtime_kvContext,
 ) {
-	if r, isRuntime := l.currentNode.(*runtimeSpec); isRuntime {
-		r.keyValues[ctx.Identifier().GetText()] = ctx.Expr().GetText()
-	} else {
-		log.Fatal(
-			newMismatchContextError(
-				ctx.GetStart().GetLine(),
-				ctx.GetStart().GetColumn(),
-				"task runtime key/value pairs",
-				"runtimeSpec",
-				l.currentNode,
-			),
-		)
-	}
+	k, v := ctx.Identifier().GetText(), ctx.Expr().GetText()
+	l.astContext.taskNode.Runtime[k] = v
+}
+
+// Parse any declaration
+func (l *wdlv1_1Listener) EnterUnbound_decls(ctx *parser.Unbound_declsContext) {
+	n := newDecl(
+		ctx.GetStart().GetStart(),
+		ctx.GetStop().GetStop(),
+		ctx.Identifier().GetText(),
+		ctx.Wdl_type().GetText(),
+	)
+	*l.astContext.declarationList = append(
+		*l.astContext.declarationList,
+		n,
+	)
+}
+
+// Parse metadata
+func (l *wdlv1_1Listener) ExitMeta_kv(ctx *parser.Meta_kvContext) {
+	k, v := ctx.MetaIdentifier().GetText(), ctx.Meta_value().GetText()
+	(*l.astContext.metadataList)[k] = v
 }
 
 // Antlr4Parse parse a WDL document into WDL

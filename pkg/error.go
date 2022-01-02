@@ -41,30 +41,3 @@ func (l *wdlErrorListener) SyntaxError(
 		l.syntaxErrors, newWdlSyntaxError(line, column, msg),
 	)
 }
-
-type mismatchContextError struct {
-	line, column                      int
-	listenerNode                      node
-	expListenerContext, parserContext string
-}
-
-func (e mismatchContextError) Error() string {
-	return fmt.Sprintf(
-		"Wrong listener context at line %d:%d:"+
-			" parser is currently in an %v context and expect a %v listener"+
-			" node but found a %T node instead",
-		e.line, e.column, e.parserContext, e.expListenerContext, e.listenerNode,
-	)
-}
-
-func newMismatchContextError(
-	line, column int, parserCtx, expListenerCtx string, listenerNode node,
-) mismatchContextError {
-	return mismatchContextError{
-		line:               line,
-		column:             column,
-		listenerNode:       listenerNode,
-		expListenerContext: expListenerCtx,
-		parserContext:      parserCtx,
-	}
-}

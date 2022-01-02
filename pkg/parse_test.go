@@ -74,11 +74,9 @@ func TestWorkflowInput(t *testing.T) {
 	}
 
 	input1 := newDecl(50, 65, "input_str", "String")
-	input1.setParent(result.Workflow.Inputs)
 	input2 := newDecl(75, 94, "input_file_path", "File")
-	input2.setParent(result.Workflow.Inputs)
 	expectedInput := []*decl{input1, input2}
-	resultInput := result.Workflow.Inputs.decls
+	resultInput := result.Workflow.Inputs
 	if !reflect.DeepEqual(resultInput, expectedInput) {
 		t.Errorf(
 			"Found workflow input %v, expect %v",
@@ -100,17 +98,13 @@ func TestWorkflowPrivateDeclaration(t *testing.T) {
 		{
 			genNode:    genNode{start: 47, end: 64},
 			identifier: "s",
-			initialization: &expr{
-				genNode: genNode{start: 58, end: 64},
-			},
-			typ: "String",
+			typ:        "String",
 		},
 	}
 	resultPrivateDecl := result.Workflow.PrvtDecls
 	cmpOptions := append(
 		commonCmpopts,
-		cmp.AllowUnexported(decl{}, expr{}),
-		cmpopts.IgnoreFields(expr{}, "lock"),
+		cmp.AllowUnexported(decl{}),
 	)
 	if diff := cmp.Diff(
 		expectedPrivateDecl, resultPrivateDecl, cmpOptions...,
@@ -172,17 +166,13 @@ func TestWorkflowOutput(t *testing.T) {
 		{
 			genNode:    genNode{start: 52, end: 87},
 			identifier: "output_file",
-			initialization: &expr{
-				genNode: genNode{start: 71, end: 87},
-			},
-			typ: "File",
+			typ:        "File",
 		},
 	}
-	resultOutput := result.Workflow.Outputs.decls
+	resultOutput := result.Workflow.Outputs
 	cmpOptions := append(
 		commonCmpopts,
-		cmp.AllowUnexported(decl{}, expr{}),
-		cmpopts.IgnoreFields(expr{}, "lock"),
+		cmp.AllowUnexported(decl{}),
 	)
 	if diff := cmp.Diff(
 		expectedOutput, resultOutput, cmpOptions...,
@@ -204,7 +194,7 @@ func TestWorkflowMeta(t *testing.T) {
 			"Found %d errors in %q, expect no errors", len(err), inputPath,
 		)
 	}
-	resultMeta := result.Workflow.Meta.keyValues
+	resultMeta := result.Workflow.Meta
 	if !reflect.DeepEqual(resultMeta, expectedMeta) {
 		t.Errorf(
 			"Found workflow metadata %v, expect %v",
@@ -224,7 +214,7 @@ func TestWorkflowParameterMeta(t *testing.T) {
 			"Found %d errors in %q, expect no errors", len(err), inputPath,
 		)
 	}
-	resultParameterMeta := result.Workflow.ParameterMeta.keyValues
+	resultParameterMeta := result.Workflow.ParameterMeta
 	if !reflect.DeepEqual(resultParameterMeta, expectedParameterMeta) {
 		t.Errorf(
 			"Found workflow parameter metadata %v, expect %v",
@@ -246,17 +236,13 @@ func TestTaskInput(t *testing.T) {
 		{
 			genNode:    genNode{start: 46, end: 66},
 			identifier: "name",
-			initialization: &expr{
-				genNode: genNode{start: 60, end: 66},
-			},
-			typ: "String",
+			typ:        "String",
 		},
 	}
-	resultInput := result.Tasks[0].Inputs.decls
+	resultInput := result.Tasks[0].Inputs
 	cmpOptions := append(
 		commonCmpopts,
-		cmp.AllowUnexported(decl{}, expr{}),
-		cmpopts.IgnoreFields(expr{}, "lock"),
+		cmp.AllowUnexported(decl{}),
 	)
 	if diff := cmp.Diff(
 		expectedInput, resultInput, cmpOptions...,
@@ -278,17 +264,13 @@ func TestTaskPrivateDeclaration(t *testing.T) {
 		{
 			genNode:    genNode{start: 43, end: 60},
 			identifier: "s",
-			initialization: &expr{
-				genNode: genNode{start: 54, end: 60},
-			},
-			typ: "String",
+			typ:        "String",
 		},
 	}
 	resultPrivateDecl := result.Tasks[0].PrvtDecls
 	cmpOptions := append(
 		commonCmpopts,
-		cmp.AllowUnexported(decl{}, expr{}),
-		cmpopts.IgnoreFields(expr{}, "lock"),
+		cmp.AllowUnexported(decl{}),
 	)
 	if diff := cmp.Diff(
 		expectedPrivateDecl, resultPrivateDecl, cmpOptions...,
@@ -301,7 +283,7 @@ func TestTaskCommand(t *testing.T) {
 	inputPath := "testdata/task_command.wdl"
 	result, err := Antlr4Parse(inputPath)
 	expectedCommand := []string{
-		"\n        echo \"Hello ", "~{world}", "\"\n    ",
+		"\n        echo \"Hello world\"\n    ",
 	}
 	if err != nil {
 		t.Errorf(
@@ -330,17 +312,13 @@ func TestTaskOutput(t *testing.T) {
 		{
 			genNode:    genNode{start: 47, end: 73},
 			identifier: "output_file",
-			initialization: &expr{
-				genNode: genNode{start: 66, end: 73},
-			},
-			typ: "File",
+			typ:        "File",
 		},
 	}
-	resultOutput := result.Tasks[0].Outputs.decls
+	resultOutput := result.Tasks[0].Outputs
 	cmpOptions := append(
 		commonCmpopts,
-		cmp.AllowUnexported(decl{}, expr{}),
-		cmpopts.IgnoreFields(expr{}, "lock"),
+		cmp.AllowUnexported(decl{}),
 	)
 	if diff := cmp.Diff(
 		expectedOutput, resultOutput, cmpOptions...,
@@ -360,7 +338,7 @@ func TestTaskRuntime(t *testing.T) {
 			"Found %d errors in %q, expect no errors", len(err), inputPath,
 		)
 	}
-	resultRuntime := result.Tasks[0].Runtime.keyValues
+	resultRuntime := result.Tasks[0].Runtime
 	if !reflect.DeepEqual(resultRuntime, expectedRuntime) {
 		t.Errorf(
 			"Found task runtime %v, expect %v",
@@ -382,7 +360,7 @@ func TestTaskMeta(t *testing.T) {
 			"Found %d errors in %q, expect no errors", len(err), inputPath,
 		)
 	}
-	resultMeta := result.Tasks[0].Meta.keyValues
+	resultMeta := result.Tasks[0].Meta
 	if !reflect.DeepEqual(resultMeta, expectedMeta) {
 		t.Errorf(
 			"Found task metadata %v, expect %v",
@@ -402,7 +380,7 @@ func TestTaskParameterMeta(t *testing.T) {
 			"Found %d errors in %q, expect no errors", len(err), inputPath,
 		)
 	}
-	resultParameterMeta := result.Tasks[0].ParameterMeta.keyValues
+	resultParameterMeta := result.Tasks[0].ParameterMeta
 	if !reflect.DeepEqual(resultParameterMeta, expectedParameterMeta) {
 		t.Errorf(
 			"Found task parameter metadata %v, expect %v",

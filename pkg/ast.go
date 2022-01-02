@@ -18,11 +18,9 @@ const (
 	tsk                 // task
 	ipt                 // input
 	opt                 // output
-	rnt                 // task runtime
 	mtd                 // metadata
 	pmt                 // parameter metadata
 	dcl                 // general declaration
-	exp                 // expression
 )
 
 type node interface {
@@ -44,10 +42,6 @@ type genNode struct {
 	start, end int
 	parent     node
 	children   []node
-}
-
-func newGenNode(start, end int) *genNode {
-	return &genNode{start: start, end: end}
 }
 
 func (v *genNode) getStart() int         { return v.start }
@@ -90,7 +84,7 @@ type (
 	decl     struct {
 		genNode
 		identifier     string
-		initialization *expr
+		initialization exprRPN
 		typ            declType
 	}
 )
@@ -105,96 +99,6 @@ func newDecl(start, end int, identifier, rawType string) *decl {
 
 func (*decl) getKind() nodeKind { return dcl }
 
-func (p *decl) addChild(n node) error {
-	switch c := n.(type) {
-	case *expr:
-		if p.initialization != nil {
-			return fmt.Errorf(
-				"a declaration takes only one expression as initialization"+
-					" and already has one: %v; cannot take another %T child",
-				p.initialization,
-				n,
-			)
-		}
-		p.initialization = c
-	default:
-		return fmt.Errorf("declaration cannot have direct %T child: %v", n, n)
-	}
-	return nil
-}
-
-// inputDecls is an array of declarations only for inputs
-type inputDecls struct {
-	genNode
-	decls []*decl
-}
-
-func newInputDecls(start, end int) *inputDecls {
-	id := new(inputDecls)
-	id.genNode = genNode{start, end, nil, []node{}}
-	return id
-}
-
-func (*inputDecls) getKind() nodeKind { return ipt }
-
-func (p *inputDecls) addChild(n node) error {
-	switch c := n.(type) {
-	case *decl:
-		newStart := n.getStart()
-		newEnd := n.getEnd()
-		for _, child := range p.decls {
-			if (child.getStart() == newStart) && (child.getEnd() == newEnd) {
-				return fmt.Errorf(
-					"failed to add child; an existing child with"+
-						" identical start and end has been found: %v", child,
-				)
-			}
-		}
-		p.decls = append(p.decls, c)
-	default:
-		return fmt.Errorf(
-			"input declaration spec cannot have direct %T child: %v", n, n,
-		)
-	}
-	return nil
-}
-
-// outputDecls is an array of declarations only for outputs
-type outputDecls struct {
-	genNode
-	decls []*decl
-}
-
-func newOutputDecls(start, end int) *outputDecls {
-	od := new(outputDecls)
-	od.genNode = genNode{start, end, nil, []node{}}
-	return od
-}
-
-func (*outputDecls) getKind() nodeKind { return opt }
-
-func (p *outputDecls) addChild(n node) error {
-	switch c := n.(type) {
-	case *decl:
-		newStart := n.getStart()
-		newEnd := n.getEnd()
-		for _, child := range p.decls {
-			if (child.getStart() == newStart) && (child.getEnd() == newEnd) {
-				return fmt.Errorf(
-					"failed to add child; an existing child with"+
-						" identical start and end has been found: %v", child,
-				)
-			}
-		}
-		p.decls = append(p.decls, c)
-	default:
-		return fmt.Errorf(
-			"output declaration spec cannot have direct %T child: %v", n, n,
-		)
-	}
-	return nil
-}
-
 // A keyValue represents a key/value pair defined in call input, runtime,
 // metadata or parameter metadata sections.
 type keyValue struct {
@@ -205,48 +109,6 @@ type keyValue struct {
 func newKeyValue(start, end int, key, value string) *keyValue {
 	return &keyValue{genNode{start: start, end: end}, key, value}
 }
-
-type runtimeSpec struct {
-	genNode
-	keyValues map[string]string
-}
-
-func newRuntimeSpecs(start, end int) *runtimeSpec {
-	rs := new(runtimeSpec)
-	rs.genNode = genNode{start, end, nil, []node{}}
-	rs.keyValues = map[string]string{}
-	return rs
-}
-
-func (*runtimeSpec) getKind() nodeKind { return rnt }
-
-type metaSpec struct {
-	genNode
-	keyValues map[string]string
-}
-
-func newMetaSpecs(start, end int) *metaSpec {
-	ms := new(metaSpec)
-	ms.genNode = genNode{start, end, nil, []node{}}
-	ms.keyValues = map[string]string{}
-	return ms
-}
-
-func (*metaSpec) getKind() nodeKind { return mtd }
-
-type parameterMetaSpec struct {
-	genNode
-	keyValues map[string]string
-}
-
-func newParameterMetaSpecs(start, end int) *parameterMetaSpec {
-	pms := new(parameterMetaSpec)
-	pms.genNode = genNode{start, end, nil, []node{}}
-	pms.keyValues = map[string]string{}
-	return pms
-}
-
-func (*parameterMetaSpec) getKind() nodeKind { return pmt }
 
 // A WDL represents a parsed WDL document.
 type WDL struct {
@@ -317,75 +179,24 @@ func (*importSpec) getKind() nodeKind { return imp }
 // A Workflow represents one parsed workflow.
 type Workflow struct {
 	namedNode
-	Inputs        *inputDecls
+	Inputs        []*decl
 	PrvtDecls     []*decl
-	Outputs       *outputDecls
+	Outputs       []*decl
 	Calls         []*Call
-	Meta          *metaSpec
-	ParameterMeta *parameterMetaSpec
+	Meta          map[string]string
+	ParameterMeta map[string]string
 	Elements      []string
 }
 
 func NewWorkflow(start, end int, name string) *Workflow {
 	workflow := new(Workflow)
 	workflow.namedNode = *newNamedNode(start, end, name)
+	workflow.Meta = make(map[string]string)
+	workflow.ParameterMeta = make(map[string]string)
 	return workflow
 }
 
 func (*Workflow) getKind() nodeKind { return wfl }
-
-func (p *Workflow) addChild(n node) error {
-	switch c := n.(type) {
-	case *inputDecls:
-		if p.Inputs != nil {
-			return fmt.Errorf(
-				"workflow inputs are already defined in one single set: %v;"+
-					" cannot take another %T child",
-				p.Inputs,
-				n,
-			)
-		}
-		p.Inputs = c
-	case *decl:
-		p.PrvtDecls = append(p.PrvtDecls, c)
-	case *outputDecls:
-		if p.Outputs != nil {
-			return fmt.Errorf(
-				"workflow outputs are already defined in one single set: %v;"+
-					" cannot take another %T child",
-				p.Outputs,
-				n,
-			)
-		}
-		p.Outputs = c
-	case *Call:
-		p.Calls = append(p.Calls, c)
-	case *metaSpec:
-		if p.Meta != nil {
-			return fmt.Errorf(
-				"workflow metadata are already defined in one single set: %v;"+
-					" cannot take another %T child",
-				p.Meta,
-				n,
-			)
-		}
-		p.Meta = c
-	case *parameterMetaSpec:
-		if p.ParameterMeta != nil {
-			return fmt.Errorf(
-				"metadata about workflow input/output parameter are already"+
-					" defined in one single set: %v;"+
-					" cannot take another %T child",
-				p.ParameterMeta,
-				n,
-			)
-		}
-		p.ParameterMeta = c
-	default:
-		return fmt.Errorf("workflow cannot have direct %T child: %v", n, n)
-	}
-	return nil
-}
 
 // A Call represents one parsed call in a workflow.
 type Call struct {
@@ -426,91 +237,22 @@ func (p *Call) addChild(n node) error {
 // A Task represents one parsed task.
 type Task struct {
 	namedNode
-	Inputs        *inputDecls
+	Inputs        []*decl
 	PrvtDecls     []*decl
-	Outputs       *outputDecls
+	Outputs       []*decl
 	Command       []string
-	Runtime       *runtimeSpec
-	Meta          *metaSpec
-	ParameterMeta *parameterMetaSpec
+	Runtime       map[string]string
+	Meta          map[string]string
+	ParameterMeta map[string]string
 }
 
 func NewTask(start, end int, name string) *Task {
 	task := new(Task)
 	task.namedNode = *newNamedNode(start, end, name)
+	task.Runtime = make(map[string]string)
+	task.Meta = make(map[string]string)
+	task.ParameterMeta = make(map[string]string)
 	return task
 }
 
 func (*Task) getKind() nodeKind { return tsk }
-
-func (p *Task) addChild(n node) error {
-	switch c := n.(type) {
-	case *inputDecls:
-		if p.Inputs != nil {
-			return fmt.Errorf(
-				"task inputs are already defined in one single set: %v;"+
-					" cannot take another %T child",
-				p.Inputs,
-				n,
-			)
-		}
-		p.Inputs = c
-	case *decl:
-		p.PrvtDecls = append(p.PrvtDecls, c)
-	case *outputDecls:
-		if p.Outputs != nil {
-			return fmt.Errorf(
-				"task outputs are already defined in one single set: %v;"+
-					" cannot take another %T child",
-				p.Outputs,
-				n,
-			)
-		}
-		p.Outputs = c
-	case *runtimeSpec:
-		if p.Runtime != nil {
-			return fmt.Errorf(
-				"task runtime is already defined in one single set: %v;"+
-					" cannot take another %T child",
-				p.Meta,
-				n,
-			)
-		}
-		p.Runtime = c
-	case *metaSpec:
-		if p.Meta != nil {
-			return fmt.Errorf(
-				"task metadata are already defined in one single set: %v;"+
-					" cannot take another %T child",
-				p.Meta,
-				n,
-			)
-		}
-		p.Meta = c
-	case *parameterMetaSpec:
-		if p.ParameterMeta != nil {
-			return fmt.Errorf(
-				"metadata about task input/output parameter are already"+
-					" defined in one single set: %v;"+
-					" cannot take another %T child",
-				p.ParameterMeta,
-				n,
-			)
-		}
-		p.ParameterMeta = c
-	default:
-		// TODO: remove this support on child with arbitrary kind
-		newStart := n.getStart()
-		newEnd := n.getEnd()
-		for _, child := range p.children {
-			if (child.getStart() == newStart) && (child.getEnd() == newEnd) {
-				return fmt.Errorf(
-					"failed to add child; an existing child with"+
-						" identical start and end has been found: %v", child,
-				)
-			}
-		}
-		p.children = append(p.children, c)
-	}
-	return nil
-}

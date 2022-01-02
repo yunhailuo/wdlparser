@@ -5,37 +5,14 @@ import (
 	"log"
 	"math"
 	"strconv"
-	"sync"
 
 	parser "github.com/yunhailuo/wdlparser/pkg/wdlv1_1"
 )
 
-type expr struct {
-	genNode
-	rpn  []interface{}
-	lock sync.RWMutex
-}
+type exprRPN []interface{}
 
-func (*expr) getKind() nodeKind { return exp }
-
-func (e *expr) append(elem interface{}) {
-	e.lock.Lock()
-	defer e.lock.Unlock()
-	e.rpn = append(e.rpn, elem)
-}
-
-func (e *expr) extend(e2 *expr) {
-	e.lock.Lock()
-	defer e.lock.Unlock()
-	e2.lock.Lock()
-	defer e2.lock.Unlock()
-	e.rpn = append(e.rpn, e2.rpn...)
-}
-
-func newExpr(start, end int) *expr {
-	e := new(expr)
-	e.genNode = genNode{start: start, end: end}
-	return e
+func (e *exprRPN) append(elem interface{}) {
+	*e = append(*e, elem)
 }
 
 // A Type represents a type of WDL.
@@ -384,42 +361,15 @@ func logicalOr(lhs, rhs value) (value, error) {
 
 // Antlr4 listeners
 
-func (l *wdlv1_1Listener) EnterExpr(ctx *parser.ExprContext) {
-	l.branching(
-		newExpr(
-			ctx.GetStart().GetStart(),
-			ctx.GetStop().GetStop(),
-		),
-		true,
-	)
-}
-
-func (l *wdlv1_1Listener) ExitExpr(ctx *parser.ExprContext) {
-	l.currentNode = l.currentNode.getParent()
-}
-
 func (l *wdlv1_1Listener) ExitPrimitive_literal(
 	ctx *parser.Primitive_literalContext,
 ) {
-	expr, isExpr := l.currentNode.(*expr)
-	if !isExpr {
-		log.Fatal(
-			newMismatchContextError(
-				ctx.GetStart().GetLine(),
-				ctx.GetStart().GetColumn(),
-				"number",
-				"expression",
-				l.currentNode,
-			),
-		)
-	}
-
 	// BoolLiteral of primitive_literal
 	boolToken := ctx.BoolLiteral()
 	if boolToken != nil {
 		v, e := newValue(Boolean, boolToken.GetText())
 		if e == nil {
-			expr.append(v)
+			l.astContext.exprNode.append(v)
 		} else {
 			log.Fatal(e)
 		}
@@ -431,7 +381,7 @@ func (l *wdlv1_1Listener) ExitPrimitive_literal(
 	if noneToken != nil {
 		v, e := newValue(Any, noneToken.GetText())
 		if e == nil {
-			expr.append(v)
+			l.astContext.exprNode.append(v)
 		} else {
 			log.Fatal(e)
 		}
@@ -442,31 +392,18 @@ func (l *wdlv1_1Listener) ExitPrimitive_literal(
 	// TODO: this should somehow point to the variable
 	identifierToken := ctx.Identifier()
 	if identifierToken != nil {
-		expr.append(identifierToken)
+		l.astContext.exprNode.append(identifierToken)
 		return
 	}
 }
 
 func (l *wdlv1_1Listener) ExitNumber(ctx *parser.NumberContext) {
-	expr, isExpr := l.currentNode.(*expr)
-	if !isExpr {
-		log.Fatal(
-			newMismatchContextError(
-				ctx.GetStart().GetLine(),
-				ctx.GetStart().GetColumn(),
-				"number",
-				"expression",
-				l.currentNode,
-			),
-		)
-	}
-
 	// IntLiteral
 	intToken := ctx.IntLiteral()
 	if intToken != nil {
 		v, e := newValue(Int, intToken.GetText())
 		if e == nil {
-			expr.append(v)
+			l.astContext.exprNode.append(v)
 		} else {
 			log.Fatal(e)
 		}
@@ -478,7 +415,7 @@ func (l *wdlv1_1Listener) ExitNumber(ctx *parser.NumberContext) {
 	if floatToken != nil {
 		v, e := newValue(Float, floatToken.GetText())
 		if e == nil {
-			expr.append(v)
+			l.astContext.exprNode.append(v)
 		} else {
 			log.Fatal(e)
 		}
@@ -489,334 +426,63 @@ func (l *wdlv1_1Listener) ExitNumber(ctx *parser.NumberContext) {
 }
 
 func (l *wdlv1_1Listener) ExitLor(ctx *parser.LorContext) {
-	expr, isExpr := l.currentNode.(*expr)
-	if !isExpr {
-		log.Fatal(
-			newMismatchContextError(
-				ctx.GetStart().GetLine(),
-				ctx.GetStart().GetColumn(),
-				"logical OR",
-				"expression",
-				l.currentNode,
-			),
-		)
-	}
-	expr.append(wdlOr)
+	l.astContext.exprNode.append(wdlOr)
 }
 
 func (l *wdlv1_1Listener) ExitLand(ctx *parser.LandContext) {
-	expr, isExpr := l.currentNode.(*expr)
-	if !isExpr {
-		log.Fatal(
-			newMismatchContextError(
-				ctx.GetStart().GetLine(),
-				ctx.GetStart().GetColumn(),
-				"logical AND",
-				"expression",
-				l.currentNode,
-			),
-		)
-	}
-	expr.append(wdlAnd)
+	l.astContext.exprNode.append(wdlAnd)
 }
 
 func (l *wdlv1_1Listener) ExitEqeq(ctx *parser.EqeqContext) {
-	expr, isExpr := l.currentNode.(*expr)
-	if !isExpr {
-		log.Fatal(
-			newMismatchContextError(
-				ctx.GetStart().GetLine(),
-				ctx.GetStart().GetColumn(),
-				"equality",
-				"expression",
-				l.currentNode,
-			),
-		)
-	}
-	expr.append(wdlEq)
+	l.astContext.exprNode.append(wdlEq)
 }
 
 func (l *wdlv1_1Listener) ExitNeq(ctx *parser.NeqContext) {
-	expr, isExpr := l.currentNode.(*expr)
-	if !isExpr {
-		log.Fatal(
-			newMismatchContextError(
-				ctx.GetStart().GetLine(),
-				ctx.GetStart().GetColumn(),
-				"inequality",
-				"expression",
-				l.currentNode,
-			),
-		)
-	}
-	expr.append(wdlNeq)
+	l.astContext.exprNode.append(wdlNeq)
 }
 
 func (l *wdlv1_1Listener) ExitLte(ctx *parser.LteContext) {
-	expr, isExpr := l.currentNode.(*expr)
-	if !isExpr {
-		log.Fatal(
-			newMismatchContextError(
-				ctx.GetStart().GetLine(),
-				ctx.GetStart().GetColumn(),
-				"less than or equal",
-				"expression",
-				l.currentNode,
-			),
-		)
-	}
-	expr.append(wdlLte)
+	l.astContext.exprNode.append(wdlLte)
 }
 
 func (l *wdlv1_1Listener) ExitGte(ctx *parser.GteContext) {
-	expr, isExpr := l.currentNode.(*expr)
-	if !isExpr {
-		log.Fatal(
-			newMismatchContextError(
-				ctx.GetStart().GetLine(),
-				ctx.GetStart().GetColumn(),
-				"grater than or equal",
-				"expression",
-				l.currentNode,
-			),
-		)
-	}
-	expr.append(wdlGte)
+	l.astContext.exprNode.append(wdlGte)
 }
 
 func (l *wdlv1_1Listener) ExitLt(ctx *parser.LtContext) {
-	expr, isExpr := l.currentNode.(*expr)
-	if !isExpr {
-		log.Fatal(
-			newMismatchContextError(
-				ctx.GetStart().GetLine(),
-				ctx.GetStart().GetColumn(),
-				"less than",
-				"expression",
-				l.currentNode,
-			),
-		)
-	}
-	expr.append(wdlLt)
+	l.astContext.exprNode.append(wdlLt)
 }
 
 func (l *wdlv1_1Listener) ExitGt(ctx *parser.GtContext) {
-	expr, isExpr := l.currentNode.(*expr)
-	if !isExpr {
-		log.Fatal(
-			newMismatchContextError(
-				ctx.GetStart().GetLine(),
-				ctx.GetStart().GetColumn(),
-				"greater than",
-				"expression",
-				l.currentNode,
-			),
-		)
-	}
-	expr.append(wdlGt)
+	l.astContext.exprNode.append(wdlGt)
 }
 
 func (l *wdlv1_1Listener) ExitAdd(ctx *parser.AddContext) {
-	expr, isExpr := l.currentNode.(*expr)
-	if !isExpr {
-		log.Fatal(
-			newMismatchContextError(
-				ctx.GetStart().GetLine(),
-				ctx.GetStart().GetColumn(),
-				"addition",
-				"expression",
-				l.currentNode,
-			),
-		)
-	}
-	expr.append(wdlAdd)
+	l.astContext.exprNode.append(wdlAdd)
 }
 
 func (l *wdlv1_1Listener) ExitSub(ctx *parser.SubContext) {
-	expr, isExpr := l.currentNode.(*expr)
-	if !isExpr {
-		log.Fatal(
-			newMismatchContextError(
-				ctx.GetStart().GetLine(),
-				ctx.GetStart().GetColumn(),
-				"substract",
-				"expression",
-				l.currentNode,
-			),
-		)
-	}
-	expr.append(wdlSub)
+	l.astContext.exprNode.append(wdlSub)
 }
 
 func (l *wdlv1_1Listener) ExitMul(ctx *parser.MulContext) {
-	expr, isExpr := l.currentNode.(*expr)
-	if !isExpr {
-		log.Fatal(
-			newMismatchContextError(
-				ctx.GetStart().GetLine(),
-				ctx.GetStart().GetColumn(),
-				"multiplication",
-				"expression",
-				l.currentNode,
-			),
-		)
-	}
-	expr.append(wdlMul)
+	l.astContext.exprNode.append(wdlMul)
 }
 
 func (l *wdlv1_1Listener) ExitDivide(ctx *parser.DivideContext) {
-	expr, isExpr := l.currentNode.(*expr)
-	if !isExpr {
-		log.Fatal(
-			newMismatchContextError(
-				ctx.GetStart().GetLine(),
-				ctx.GetStart().GetColumn(),
-				"division",
-				"expression",
-				l.currentNode,
-			),
-		)
-	}
-	expr.append(wdlDiv)
+	l.astContext.exprNode.append(wdlDiv)
 }
 
 func (l *wdlv1_1Listener) ExitMod(ctx *parser.ModContext) {
-	expr, isExpr := l.currentNode.(*expr)
-	if !isExpr {
-		log.Fatal(
-			newMismatchContextError(
-				ctx.GetStart().GetLine(),
-				ctx.GetStart().GetColumn(),
-				"remainder",
-				"expression",
-				l.currentNode,
-			),
-		)
-	}
-	expr.append(wdlMod)
-}
-
-func (l *wdlv1_1Listener) EnterExpression_group(
-	ctx *parser.Expression_groupContext,
-) {
-	l.branching(
-		newGenNode(
-			ctx.GetStart().GetStart(),
-			ctx.GetStop().GetStop(),
-		),
-		true,
-	)
-}
-
-func (l *wdlv1_1Listener) ExitExpression_group(
-	ctx *parser.Expression_groupContext,
-) {
-	var childExprs []*expr
-	for _, child := range l.currentNode.getChildren() {
-		if ce, isExpr := child.(*expr); isExpr {
-			childExprs = append(childExprs, ce)
-		}
-	}
-	if len(childExprs) != 1 {
-		log.Fatalf(
-			"expression group expects exactly 1 child expression, found %v",
-			len(childExprs),
-		)
-	}
-	l.currentNode = l.currentNode.getParent()
-	expr, isExpr := l.currentNode.(*expr)
-	if !isExpr {
-		log.Fatal(
-			newMismatchContextError(
-				ctx.GetStart().GetLine(),
-				ctx.GetStart().GetColumn(),
-				"grouping",
-				"expression",
-				l.currentNode,
-			),
-		)
-	}
-	expr.extend(childExprs[0])
-}
-
-func (l *wdlv1_1Listener) EnterNegate(ctx *parser.NegateContext) {
-	l.branching(
-		newGenNode(
-			ctx.GetStart().GetStart(),
-			ctx.GetStop().GetStop(),
-		),
-		true,
-	)
+	l.astContext.exprNode.append(wdlMod)
 }
 
 func (l *wdlv1_1Listener) ExitNegate(ctx *parser.NegateContext) {
-	var childExprs []*expr
-	for _, child := range l.currentNode.getChildren() {
-		if ce, isExpr := child.(*expr); isExpr {
-			childExprs = append(childExprs, ce)
-		}
-	}
-	if len(childExprs) != 1 {
-		log.Fatalf(
-			"logical not expects exactly 1 child expression, found %v",
-			len(childExprs),
-		)
-	}
-	l.currentNode = l.currentNode.getParent()
-	expr, isExpr := l.currentNode.(*expr)
-	if !isExpr {
-		log.Fatal(
-			newMismatchContextError(
-				ctx.GetStart().GetLine(),
-				ctx.GetStart().GetColumn(),
-				"logical NOT",
-				"expression",
-				l.currentNode,
-			),
-		)
-	}
-	expr.extend(childExprs[0])
-	expr.append(wdlNot)
-}
-
-func (l *wdlv1_1Listener) EnterUnarysigned(ctx *parser.UnarysignedContext) {
-	l.branching(
-		newGenNode(
-			ctx.GetStart().GetStart(),
-			ctx.GetStop().GetStop(),
-		),
-		true,
-	)
+	l.astContext.exprNode.append(wdlNot)
 }
 
 func (l *wdlv1_1Listener) ExitUnarysigned(ctx *parser.UnarysignedContext) {
-	var childExprs []*expr
-	for _, child := range l.currentNode.getChildren() {
-		if ce, isExpr := child.(*expr); isExpr {
-			childExprs = append(childExprs, ce)
-		}
-	}
-	if len(childExprs) != 1 {
-		log.Fatalf(
-			"arithmetic negation expects exactly 1 child expression, found %v",
-			len(childExprs),
-		)
-	}
-	l.currentNode = l.currentNode.getParent()
-	expr, isExpr := l.currentNode.(*expr)
-	if !isExpr {
-		log.Fatal(
-			newMismatchContextError(
-				ctx.GetStart().GetLine(),
-				ctx.GetStart().GetColumn(),
-				"unary negation",
-				"expression",
-				l.currentNode,
-			),
-		)
-	}
-	expr.extend(childExprs[0])
 	if ctx.MINUS() != nil {
-		expr.append(wdlNeg)
+		l.astContext.exprNode.append(wdlNeg)
 	}
 }
