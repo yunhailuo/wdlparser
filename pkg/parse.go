@@ -120,6 +120,11 @@ func (l *wdlv1_1Listener) EnterEveryRule(ctx antlr.ParserRuleContext) {
 	case *parser.Task_outputContext:
 		l.astContext.kindStack.push(opt)
 		l.astContext.declarationList = &l.astContext.taskNode.Outputs
+	case *parser.Task_runtime_kvContext:
+		k := c.Identifier().GetText()
+		v := &exprRPN{}
+		l.astContext.taskNode.Runtime[newIdentifier(k, false)] = v
+		l.astContext.exprNode = v
 	case *parser.MetaContext:
 		l.astContext.kindStack.push(mtd)
 		if l.astContext.kindStack.contains(wfl) {
@@ -151,14 +156,15 @@ func (l *wdlv1_1Listener) EnterEveryRule(ctx antlr.ParserRuleContext) {
 			c.Identifier().GetText(),
 			c.Wdl_type().GetText(),
 		)
-		l.astContext.exprNode = &n.initialization
+		l.astContext.exprNode = &n.value
 		*l.astContext.declarationList = append(
 			*l.astContext.declarationList,
 			n,
 		)
-	// TODO: fix the following case
 	case *parser.Call_inputContext:
-		l.astContext.exprNode = &exprRPN{}
+		k := newIdentifier(c.Identifier().GetText(), true)
+		l.astContext.callNode.Inputs[k] = &exprRPN{}
+		l.astContext.exprNode = l.astContext.callNode.Inputs[k]
 	}
 }
 
@@ -194,6 +200,8 @@ func (l *wdlv1_1Listener) ExitEveryRule(ctx antlr.ParserRuleContext) {
 	case *parser.Task_outputContext:
 		l.astContext.kindStack.pop()
 		l.astContext.declarationList = &l.astContext.taskNode.PrvtDecls
+	case *parser.Task_runtime_kvContext:
+		l.astContext.exprNode = nil
 	case *parser.MetaContext:
 		l.astContext.kindStack.pop()
 		l.astContext.metadataList = nil
@@ -224,7 +232,7 @@ func (l *wdlv1_1Listener) ExitImport_alias(ctx *parser.Import_aliasContext) {
 
 // Parse workflow elements
 func (l *wdlv1_1Listener) ExitCall_name(ctx *parser.Call_nameContext) {
-	l.astContext.callNode.name = ctx.GetText()
+	l.astContext.callNode.name.initialName = ctx.GetText()
 }
 
 func (l *wdlv1_1Listener) ExitCall_alias(ctx *parser.Call_aliasContext) {
@@ -235,18 +243,6 @@ func (l *wdlv1_1Listener) ExitCall_after(ctx *parser.Call_afterContext) {
 	l.astContext.callNode.After = ctx.Identifier().GetText()
 }
 
-func (l *wdlv1_1Listener) ExitCall_input(ctx *parser.Call_inputContext) {
-	l.astContext.callNode.Inputs = append(
-		l.astContext.callNode.Inputs,
-		newKeyValue(
-			ctx.GetStart().GetStart(),
-			ctx.GetStop().GetStop(),
-			ctx.Identifier().GetText(),
-			ctx.Expr().GetText(),
-		),
-	)
-}
-
 // Parse a task
 // TODO: wrong parsing to be fixed
 func (l *wdlv1_1Listener) EnterTask_command(ctx *parser.Task_commandContext) {
@@ -254,13 +250,6 @@ func (l *wdlv1_1Listener) EnterTask_command(ctx *parser.Task_commandContext) {
 		l.astContext.taskNode.Command,
 		ctx.Task_command_string_part().GetText(),
 	)
-}
-
-func (l *wdlv1_1Listener) ExitTask_runtime_kv(
-	ctx *parser.Task_runtime_kvContext,
-) {
-	k, v := ctx.Identifier().GetText(), ctx.Expr().GetText()
-	l.astContext.taskNode.Runtime[k] = v
 }
 
 // Parse any declaration

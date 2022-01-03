@@ -44,15 +44,32 @@ func (*genNode) getKind() nodeKind       { return par }
 func (v *genNode) getParent() node       { return v.parent }
 func (v *genNode) setParent(parent node) { v.parent = parent }
 
+type identifier struct {
+	initialName string
+	isReference bool // otherwise, this is a definition
+}
+
+func newIdentifier(initialName string, isReference bool) identifier {
+	return identifier{
+		initialName: initialName,
+		isReference: isReference,
+	}
+}
+
 // An namedNode represents a named language entity such as input, private
 // declaration, output, runtime metadata or parameter metadata.
 type namedNode struct {
-	genNode     // Implement node interface
-	name, alias string
+	genNode // Implement node interface
+	name    identifier
+	alias   string
 }
 
 func newNamedNode(start, end int, name string) *namedNode {
-	return &namedNode{genNode{start: start, end: end}, name, ""}
+	return &namedNode{
+		genNode{start: start, end: end},
+		newIdentifier(name, false),
+		"",
+	}
 }
 
 // Declarations
@@ -61,9 +78,9 @@ type (
 	declType string
 	decl     struct {
 		genNode
-		identifier     string
-		initialization exprRPN
-		typ            declType
+		identifier string
+		value      exprRPN
+		typ        declType
 	}
 )
 
@@ -76,17 +93,6 @@ func newDecl(start, end int, identifier, rawType string) *decl {
 }
 
 func (*decl) getKind() nodeKind { return dcl }
-
-// A keyValue represents a key/value pair defined in call input, runtime,
-// metadata or parameter metadata sections.
-type keyValue struct {
-	genNode
-	key, value string
-}
-
-func newKeyValue(start, end int, key, value string) *keyValue {
-	return &keyValue{genNode{start: start, end: end}, key, value}
-}
 
 // A WDL represents a parsed WDL document.
 type WDL struct {
@@ -156,12 +162,13 @@ func (*Workflow) getKind() nodeKind { return wfl }
 type Call struct {
 	namedNode
 	After  string
-	Inputs []*keyValue
+	Inputs map[identifier]*exprRPN
 }
 
 func NewCall(start, end int, name string) *Call {
 	call := new(Call)
 	call.namedNode = *newNamedNode(start, end, name)
+	call.Inputs = make(map[identifier]*exprRPN)
 	return call
 }
 
@@ -174,7 +181,7 @@ type Task struct {
 	PrvtDecls     []*decl
 	Outputs       []*decl
 	Command       []string
-	Runtime       map[string]string
+	Runtime       map[identifier]*exprRPN
 	Meta          map[string]string
 	ParameterMeta map[string]string
 }
@@ -182,7 +189,7 @@ type Task struct {
 func NewTask(start, end int, name string) *Task {
 	task := new(Task)
 	task.namedNode = *newNamedNode(start, end, name)
-	task.Runtime = make(map[string]string)
+	task.Runtime = make(map[identifier]*exprRPN)
 	task.Meta = make(map[string]string)
 	task.ParameterMeta = make(map[string]string)
 	return task

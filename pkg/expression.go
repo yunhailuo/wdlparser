@@ -392,7 +392,7 @@ func (l *wdlv1_1Listener) ExitPrimitive_literal(
 	// TODO: this should somehow point to the variable
 	identifierToken := ctx.Identifier()
 	if identifierToken != nil {
-		l.astContext.exprNode.append(identifierToken)
+		l.astContext.exprNode.append(identifierToken.GetText())
 		return
 	}
 }

@@ -9,7 +9,7 @@ import (
 )
 
 var commonCmpopts = cmp.Options{
-	cmp.AllowUnexported(genNode{}, namedNode{}),
+	cmp.AllowUnexported(genNode{}, identifier{}, namedNode{}),
 	cmpopts.IgnoreFields(genNode{}, "parent"),
 }
 
@@ -126,26 +126,27 @@ func TestWorkflowCall(t *testing.T) {
 		{
 			namedNode: namedNode{
 				genNode: genNode{start: 39, end: 150},
-				name:    "Greeting",
+				name:    newIdentifier("Greeting", false),
 				alias:   "hello",
 			},
-			Inputs: []*keyValue{
-				newKeyValue(91, 113, "first_name", "first_name"),
-				newKeyValue(128, 144, "last_name", `"Luo"`),
+			Inputs: map[identifier]*exprRPN{
+				newIdentifier("first_name", true): {"first_name"},
+				newIdentifier("last_name", true):  {},
 			},
 		},
 		{
 			namedNode: namedNode{
-				genNode: genNode{start: 156, end: 213}, name: "Goodbye",
+				genNode: genNode{start: 156, end: 213},
+				name:    newIdentifier("Goodbye", false),
 			},
 			After: "hello",
-			Inputs: []*keyValue{
-				newKeyValue(190, 210, "first_name", `"Yunhai"`),
+			Inputs: map[identifier]*exprRPN{
+				newIdentifier("first_name", true): {},
 			},
 		},
 	}
 	resultCalls := result.Workflow.Calls
-	cmpOptions := append(commonCmpopts, cmp.AllowUnexported(Call{}, keyValue{}))
+	cmpOptions := append(commonCmpopts, cmp.AllowUnexported(Call{}))
 	if diff := cmp.Diff(
 		expectCalls, resultCalls, cmpOptions...,
 	); diff != "" {
@@ -329,8 +330,8 @@ func TestTaskOutput(t *testing.T) {
 
 func TestTaskRuntime(t *testing.T) {
 	inputPath := "testdata/task_runtime.wdl"
-	expectedRuntime := map[string]string{
-		"container": `"ubuntu:latest"`,
+	expectedRuntime := map[identifier]*exprRPN{
+		newIdentifier("container", false): {},
 	}
 	result, err := Antlr4Parse(inputPath)
 	if err != nil {

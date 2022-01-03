@@ -79,7 +79,7 @@ func TestSinglePrimitiveExpression(t *testing.T) {
 				"Found %d errors in %q, expect no errors", len(err), tc.wdl,
 			)
 		}
-		v := result.Workflow.Inputs[0].initialization
+		v := result.Workflow.Inputs[0].value
 		cmpOptions := cmp.Options{cmp.AllowUnexported(value{})}
 		if diff := cmp.Diff(v, tc.want, cmpOptions...); diff != "" {
 			t.Errorf("unexpected workflow calls:\n%s", diff)
