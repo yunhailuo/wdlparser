@@ -1,7 +1,6 @@
 package wdlparser
 
 import (
-	"fmt"
 	"path"
 	"strings"
 )
@@ -10,7 +9,8 @@ import (
 type nodeKind int
 
 const (
-	par nodeKind = iota // for parsing
+	_   nodeKind = iota // leave 0 as nodeKind zero value; start from 1
+	par                 // for parsing only
 	doc                 // WDL document
 	imp                 // import
 	wfl                 // workflow
@@ -28,20 +28,14 @@ type node interface {
 	getEnd() int   // position of last character belonging to the node, 0-based
 	getKind() nodeKind
 
-	// Ideally, children should be a list of unique nodes (i.e. a set).
-	// Two nodes are considered identical if and only if the have the same
-	// start and end.
 	getParent() node
 	setParent(node)
-	getChildren() []node
-	addChild(node) error
 }
 
 // A genNode is a concrete type of the node interface.
 type genNode struct {
 	start, end int
 	parent     node
-	children   []node
 }
 
 func (v *genNode) getStart() int         { return v.start }
@@ -49,22 +43,6 @@ func (v *genNode) getEnd() int           { return v.end }
 func (*genNode) getKind() nodeKind       { return par }
 func (v *genNode) getParent() node       { return v.parent }
 func (v *genNode) setParent(parent node) { v.parent = parent }
-func (v *genNode) getChildren() []node   { return v.children }
-
-func (p *genNode) addChild(n node) error {
-	newStart := n.getStart()
-	newEnd := n.getEnd()
-	for _, child := range p.children {
-		if (child.getStart() == newStart) && (child.getEnd() == newEnd) {
-			return fmt.Errorf(
-				"failed to add child; an existing child with"+
-					" identical start and end has been found: %v", child,
-			)
-		}
-	}
-	p.children = append(p.children, n)
-	return nil
-}
 
 // An namedNode represents a named language entity such as input, private
 // declaration, output, runtime metadata or parameter metadata.
@@ -134,30 +112,6 @@ func NewWDL(wdlPath string, size int) *WDL {
 
 func (*WDL) getKind() nodeKind { return doc }
 
-func (p *WDL) addChild(n node) error {
-	switch c := n.(type) {
-	case *importSpec:
-		p.Imports = append(p.Imports, c)
-	case *Workflow:
-		if p.Workflow != nil {
-			return fmt.Errorf(
-				"a workflow is already defined in this WDL: %v;"+
-					" cannot take another %T child",
-				p.Workflow,
-				n,
-			)
-		}
-		p.Workflow = c
-	case *Task:
-		p.Tasks = append(p.Tasks, c)
-	case *decl:
-		p.Structs = append(p.Structs, c)
-	default:
-		return fmt.Errorf("WDL cannot have direct %T child: %v", n, n)
-	}
-	return nil
-}
-
 type importSpec struct {
 	namedNode
 	uri           string
@@ -212,27 +166,6 @@ func NewCall(start, end int, name string) *Call {
 }
 
 func (*Call) getKind() nodeKind { return cal }
-
-func (p *Call) addChild(n node) error {
-	switch c := n.(type) {
-	case *keyValue:
-		p.Inputs = append(p.Inputs, c)
-	default:
-		// TODO: remove this support on child with arbitrary kind
-		newStart := n.getStart()
-		newEnd := n.getEnd()
-		for _, child := range p.children {
-			if (child.getStart() == newStart) && (child.getEnd() == newEnd) {
-				return fmt.Errorf(
-					"failed to add child; an existing child with"+
-						" identical start and end has been found: %v", child,
-				)
-			}
-		}
-		p.children = append(p.children, c)
-	}
-	return nil
-}
 
 // A Task represents one parsed task.
 type Task struct {

@@ -10,7 +10,7 @@ import (
 
 var commonCmpopts = cmp.Options{
 	cmp.AllowUnexported(genNode{}, namedNode{}),
-	cmpopts.IgnoreFields(genNode{}, "parent", "children"),
+	cmpopts.IgnoreFields(genNode{}, "parent"),
 }
 
 func TestVersion(t *testing.T) {
