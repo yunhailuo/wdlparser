@@ -1,7 +1,6 @@
 package wdlparser
 
 import (
-	"reflect"
 	"testing"
 
 	"github.com/google/go-cmp/cmp"
@@ -22,11 +21,8 @@ func TestVersion(t *testing.T) {
 			"Found %d errors in %q, expect no errors", len(err), inputPath,
 		)
 	}
-	if result.Version != expectedVersion {
-		t.Errorf(
-			"Got version %q, expect version %q",
-			result.Version, expectedVersion,
-		)
+	if diff := cmp.Diff(expectedVersion, result.Version); diff != "" {
+		t.Errorf("unexpected WDL version:\n%s", diff)
 	}
 }
 
@@ -40,12 +36,9 @@ func TestImport(t *testing.T) {
 	}
 
 	import1 := newImportSpec(13, 29, "test.wdl")
-	import1.setParent(result)
 	import2 := newImportSpec(31, 88, "http://example.com/lib/analysis_tasks")
-	import2.setParent(result)
 	import2.alias = "analysis"
 	import3 := newImportSpec(90, 216, "https://example.com/lib/stdlib.wdl")
-	import3.setParent(result)
 	import3.importAliases = map[string]string{
 		"Parent":     "Parent2",
 		"Child":      "Child2",
@@ -56,11 +49,11 @@ func TestImport(t *testing.T) {
 	for i := range result.Imports {
 		resultImports = append(resultImports, *result.Imports[i])
 	}
-	if !reflect.DeepEqual(resultImports, expectedImports) {
-		t.Errorf(
-			"Found imports %v, expect %v",
-			resultImports, expectedImports,
-		)
+	cmpOptions := append(commonCmpopts, cmp.AllowUnexported(importSpec{}))
+	if diff := cmp.Diff(
+		expectedImports, resultImports, cmpOptions...,
+	); diff != "" {
+		t.Errorf("unexpected imports:\n%s", diff)
 	}
 }
 
@@ -77,11 +70,11 @@ func TestWorkflowInput(t *testing.T) {
 	input2 := newDecl(75, 94, "input_file_path", "File")
 	expectedInput := []*decl{input1, input2}
 	resultInput := result.Workflow.Inputs
-	if !reflect.DeepEqual(resultInput, expectedInput) {
-		t.Errorf(
-			"Found workflow input %v, expect %v",
-			resultInput, expectedInput,
-		)
+	cmpOptions := append(commonCmpopts, cmp.AllowUnexported(decl{}))
+	if diff := cmp.Diff(
+		expectedInput, resultInput, cmpOptions...,
+	); diff != "" {
+		t.Errorf("unexpected workflow input:\n%s", diff)
 	}
 }
 
@@ -102,10 +95,7 @@ func TestWorkflowPrivateDeclaration(t *testing.T) {
 		},
 	}
 	resultPrivateDecl := result.Workflow.PrvtDecls
-	cmpOptions := append(
-		commonCmpopts,
-		cmp.AllowUnexported(decl{}),
-	)
+	cmpOptions := append(commonCmpopts, cmp.AllowUnexported(decl{}))
 	if diff := cmp.Diff(
 		expectedPrivateDecl, resultPrivateDecl, cmpOptions...,
 	); diff != "" {
@@ -171,14 +161,11 @@ func TestWorkflowOutput(t *testing.T) {
 		},
 	}
 	resultOutput := result.Workflow.Outputs
-	cmpOptions := append(
-		commonCmpopts,
-		cmp.AllowUnexported(decl{}),
-	)
+	cmpOptions := append(commonCmpopts, cmp.AllowUnexported(decl{}))
 	if diff := cmp.Diff(
 		expectedOutput, resultOutput, cmpOptions...,
 	); diff != "" {
-		t.Errorf("unexpected workflow calls:\n%s", diff)
+		t.Errorf("unexpected workflow output:\n%s", diff)
 	}
 }
 
@@ -196,11 +183,8 @@ func TestWorkflowMeta(t *testing.T) {
 		)
 	}
 	resultMeta := result.Workflow.Meta
-	if !reflect.DeepEqual(resultMeta, expectedMeta) {
-		t.Errorf(
-			"Found workflow metadata %v, expect %v",
-			resultMeta, expectedMeta,
-		)
+	if diff := cmp.Diff(expectedMeta, resultMeta); diff != "" {
+		t.Errorf("unexpected workflow metadata:\n%s", diff)
 	}
 }
 
@@ -216,11 +200,10 @@ func TestWorkflowParameterMeta(t *testing.T) {
 		)
 	}
 	resultParameterMeta := result.Workflow.ParameterMeta
-	if !reflect.DeepEqual(resultParameterMeta, expectedParameterMeta) {
-		t.Errorf(
-			"Found workflow parameter metadata %v, expect %v",
-			resultParameterMeta, expectedParameterMeta,
-		)
+	if diff := cmp.Diff(
+		expectedParameterMeta, resultParameterMeta,
+	); diff != "" {
+		t.Errorf("unexpected workflow parameter metadata:\n%s", diff)
 	}
 }
 
@@ -241,14 +224,11 @@ func TestTaskInput(t *testing.T) {
 		},
 	}
 	resultInput := result.Tasks[0].Inputs
-	cmpOptions := append(
-		commonCmpopts,
-		cmp.AllowUnexported(decl{}),
-	)
+	cmpOptions := append(commonCmpopts, cmp.AllowUnexported(decl{}))
 	if diff := cmp.Diff(
 		expectedInput, resultInput, cmpOptions...,
 	); diff != "" {
-		t.Errorf("unexpected workflow calls:\n%s", diff)
+		t.Errorf("unexpected task input:\n%s", diff)
 	}
 }
 
@@ -269,14 +249,11 @@ func TestTaskPrivateDeclaration(t *testing.T) {
 		},
 	}
 	resultPrivateDecl := result.Tasks[0].PrvtDecls
-	cmpOptions := append(
-		commonCmpopts,
-		cmp.AllowUnexported(decl{}),
-	)
+	cmpOptions := append(commonCmpopts, cmp.AllowUnexported(decl{}))
 	if diff := cmp.Diff(
 		expectedPrivateDecl, resultPrivateDecl, cmpOptions...,
 	); diff != "" {
-		t.Errorf("unexpected workflow calls:\n%s", diff)
+		t.Errorf("unexpected task private declaration:\n%s", diff)
 	}
 }
 
@@ -292,11 +269,8 @@ func TestTaskCommand(t *testing.T) {
 		)
 	}
 	resultCommand := result.Tasks[0].Command
-	if !reflect.DeepEqual(resultCommand, expectedCommand) {
-		t.Errorf(
-			"Found task command %v, expect %v",
-			resultCommand, expectedCommand,
-		)
+	if diff := cmp.Diff(expectedCommand, resultCommand); diff != "" {
+		t.Errorf("unexpected task command:\n%s", diff)
 	}
 }
 
@@ -317,14 +291,11 @@ func TestTaskOutput(t *testing.T) {
 		},
 	}
 	resultOutput := result.Tasks[0].Outputs
-	cmpOptions := append(
-		commonCmpopts,
-		cmp.AllowUnexported(decl{}),
-	)
+	cmpOptions := append(commonCmpopts, cmp.AllowUnexported(decl{}))
 	if diff := cmp.Diff(
 		expectedOutput, resultOutput, cmpOptions...,
 	); diff != "" {
-		t.Errorf("unexpected workflow calls:\n%s", diff)
+		t.Errorf("unexpected task output:\n%s", diff)
 	}
 }
 
@@ -340,11 +311,8 @@ func TestTaskRuntime(t *testing.T) {
 		)
 	}
 	resultRuntime := result.Tasks[0].Runtime
-	if !reflect.DeepEqual(resultRuntime, expectedRuntime) {
-		t.Errorf(
-			"Found task runtime %v, expect %v",
-			resultRuntime, expectedRuntime,
-		)
+	if diff := cmp.Diff(expectedRuntime, resultRuntime); diff != "" {
+		t.Errorf("unexpected task runtime:\n%s", diff)
 	}
 }
 
@@ -362,11 +330,8 @@ func TestTaskMeta(t *testing.T) {
 		)
 	}
 	resultMeta := result.Tasks[0].Meta
-	if !reflect.DeepEqual(resultMeta, expectedMeta) {
-		t.Errorf(
-			"Found task metadata %v, expect %v",
-			resultMeta, expectedMeta,
-		)
+	if diff := cmp.Diff(expectedMeta, resultMeta); diff != "" {
+		t.Errorf("unexpected task metadata:\n%s", diff)
 	}
 }
 
@@ -382,10 +347,9 @@ func TestTaskParameterMeta(t *testing.T) {
 		)
 	}
 	resultParameterMeta := result.Tasks[0].ParameterMeta
-	if !reflect.DeepEqual(resultParameterMeta, expectedParameterMeta) {
-		t.Errorf(
-			"Found task parameter metadata %v, expect %v",
-			resultParameterMeta, expectedParameterMeta,
-		)
+	if diff := cmp.Diff(
+		expectedParameterMeta, resultParameterMeta,
+	); diff != "" {
+		t.Errorf("unexpected task parameter metadata:\n%s", diff)
 	}
 }
