@@ -13,13 +13,29 @@ import (
 	parser "github.com/yunhailuo/wdlparser/pkg/wdlv1_1"
 )
 
-type nodeKindStack []nodeKind
+// wdlSection describes what WDL entity a node represents.
+type wdlSection int
 
-func (nks *nodeKindStack) push(nk nodeKind) {
+const (
+	_   wdlSection = iota // leave 0 as nodeKind zero value; start from 1
+	doc                   // WDL document
+	imp                   // import
+	wfl                   // workflow
+	cal                   // call
+	tsk                   // task
+	ipt                   // input
+	opt                   // output
+	mtd                   // metadata
+	pmt                   // parameter metadata
+)
+
+type sectionStack []wdlSection
+
+func (nks *sectionStack) push(nk wdlSection) {
 	*nks = append(*nks, nk)
 }
 
-func (nks *nodeKindStack) pop() {
+func (nks *sectionStack) pop() {
 	stackDepth := len(*nks)
 	if stackDepth > 0 {
 		// Won't zero the popped element since nodeKind is limited and small
@@ -29,7 +45,7 @@ func (nks *nodeKindStack) pop() {
 	log.Fatalf("pop error: node kind stack %v is empty", *nks)
 }
 
-func (nks *nodeKindStack) contains(nk nodeKind) bool {
+func (nks *sectionStack) contains(nk wdlSection) bool {
 	for _, e := range *nks {
 		if e == nk {
 			return true
@@ -42,14 +58,12 @@ type wdlv1_1Listener struct {
 	*parser.BaseWdlV1_1ParserListener
 	wdl        *WDL
 	astContext struct {
-		kindStack       nodeKindStack
-		importNode      *importSpec
-		workflowNode    *Workflow
-		callNode        *Call
-		taskNode        *Task
-		declarationList *[]*decl
-		exprNode        *exprRPN
-		metadataList    *map[string]string
+		sectionStack sectionStack
+		importNode   *importSpec
+		workflowNode *Workflow
+		callNode     *Call
+		taskNode     *Task
+		exprRPNStack *exprRPN
 	}
 }
 
@@ -60,12 +74,14 @@ func newWdlv1_1Listener(wdl *WDL) *wdlv1_1Listener {
 // Manage AST context with listener
 func (l *wdlv1_1Listener) EnterEveryRule(ctx antlr.ParserRuleContext) {
 	switch c := ctx.(type) {
+	// Set up new AST node
+	// and point current listener AST context to the new node
 	case *parser.DocumentContext:
-		l.astContext.kindStack.push(doc)
-	case *parser.Document_elementContext:
-		l.astContext.declarationList = &l.wdl.Structs
+		// This root context is special
+		// as the root AST node is already set up as `l.wdl`
+		l.astContext.sectionStack.push(doc)
 	case *parser.Import_docContext:
-		l.astContext.kindStack.push(imp)
+		l.astContext.sectionStack.push(imp)
 		n := newImportSpec(
 			c.GetStart().GetStart(),
 			c.GetStop().GetStop(),
@@ -75,7 +91,7 @@ func (l *wdlv1_1Listener) EnterEveryRule(ctx antlr.ParserRuleContext) {
 		l.wdl.Imports = append(l.wdl.Imports, n)
 		l.astContext.importNode = n
 	case *parser.WorkflowContext:
-		l.astContext.kindStack.push(wfl)
+		l.astContext.sectionStack.push(wfl)
 		l.wdl.Workflow = NewWorkflow(
 			c.GetStart().GetStart(),
 			c.GetStop().GetStop(),
@@ -83,16 +99,8 @@ func (l *wdlv1_1Listener) EnterEveryRule(ctx antlr.ParserRuleContext) {
 		)
 		l.wdl.Workflow.setParent(l.wdl)
 		l.astContext.workflowNode = l.wdl.Workflow
-	case *parser.Workflow_inputContext:
-		l.astContext.kindStack.push(ipt)
-		l.astContext.declarationList = &l.astContext.workflowNode.Inputs
-	case *parser.Workflow_outputContext:
-		l.astContext.kindStack.push(opt)
-		l.astContext.declarationList = &l.astContext.workflowNode.Outputs
-	case *parser.Inner_workflow_elementContext:
-		l.astContext.declarationList = &l.astContext.workflowNode.PrvtDecls
 	case *parser.CallContext:
-		l.astContext.kindStack.push(cal)
+		l.astContext.sectionStack.push(cal)
 		n := NewCall(
 			c.GetStart().GetStart(),
 			c.GetStop().GetStop(),
@@ -104,7 +112,7 @@ func (l *wdlv1_1Listener) EnterEveryRule(ctx antlr.ParserRuleContext) {
 		)
 		l.astContext.callNode = n
 	case *parser.TaskContext:
-		l.astContext.kindStack.push(tsk)
+		l.astContext.sectionStack.push(tsk)
 		n := NewTask(
 			c.GetStart().GetStart(),
 			c.GetStop().GetStop(),
@@ -113,105 +121,66 @@ func (l *wdlv1_1Listener) EnterEveryRule(ctx antlr.ParserRuleContext) {
 		n.setParent(l.wdl)
 		l.wdl.Tasks = append(l.wdl.Tasks, n)
 		l.astContext.taskNode = n
-		l.astContext.declarationList = &l.astContext.taskNode.PrvtDecls
+
+	// No new node is needed
+	// but current listener AST context needs to be updated
+	case *parser.Workflow_inputContext:
+		l.astContext.sectionStack.push(ipt)
+	case *parser.Workflow_outputContext:
+		l.astContext.sectionStack.push(opt)
 	case *parser.Task_inputContext:
-		l.astContext.kindStack.push(ipt)
-		l.astContext.declarationList = &l.astContext.taskNode.Inputs
+		l.astContext.sectionStack.push(ipt)
 	case *parser.Task_outputContext:
-		l.astContext.kindStack.push(opt)
-		l.astContext.declarationList = &l.astContext.taskNode.Outputs
+		l.astContext.sectionStack.push(opt)
 	case *parser.Task_runtime_kvContext:
 		k := c.Identifier().GetText()
 		v := &exprRPN{}
 		l.astContext.taskNode.Runtime[newIdentifier(k, false)] = v
-		l.astContext.exprNode = v
+		l.astContext.exprRPNStack = v
 	case *parser.MetaContext:
-		l.astContext.kindStack.push(mtd)
-		if l.astContext.kindStack.contains(wfl) {
-			l.astContext.metadataList = &l.astContext.workflowNode.Meta
-		} else if l.astContext.kindStack.contains(tsk) {
-			l.astContext.metadataList = &l.astContext.taskNode.Meta
-		} else {
-			log.Fatalf(
-				"enter metadata parser context %v"+
-					" while AST context is outside workflow or task", c,
-			)
-		}
+		l.astContext.sectionStack.push(mtd)
 	case *parser.Parameter_metaContext:
-		l.astContext.kindStack.push(pmt)
-		if l.astContext.kindStack.contains(wfl) {
-			l.astContext.metadataList = &l.astContext.workflowNode.ParameterMeta
-		} else if l.astContext.kindStack.contains(tsk) {
-			l.astContext.metadataList = &l.astContext.taskNode.ParameterMeta
-		} else {
-			log.Fatalf(
-				"enter parameter metadata parser context %v"+
-					" while AST context is outside workflow or task", c,
-			)
-		}
-	case *parser.Bound_declsContext:
-		n := newDecl(
-			c.GetStart().GetStart(),
-			c.GetStop().GetStop(),
-			c.Identifier().GetText(),
-			c.Wdl_type().GetText(),
-		)
-		l.astContext.exprNode = &n.value
-		*l.astContext.declarationList = append(
-			*l.astContext.declarationList,
-			n,
-		)
+		l.astContext.sectionStack.push(pmt)
 	case *parser.Call_inputContext:
 		k := newIdentifier(c.Identifier().GetText(), true)
 		l.astContext.callNode.Inputs[k] = &exprRPN{}
-		l.astContext.exprNode = l.astContext.callNode.Inputs[k]
+		l.astContext.exprRPNStack = l.astContext.callNode.Inputs[k]
 	}
 }
 
 func (l *wdlv1_1Listener) ExitEveryRule(ctx antlr.ParserRuleContext) {
 	switch ctx.(type) {
 	case *parser.DocumentContext:
-		l.astContext.kindStack.pop()
-	case *parser.Document_elementContext:
-		l.astContext.declarationList = nil
+		l.astContext.sectionStack.pop()
 	case *parser.Import_docContext:
-		l.astContext.kindStack.pop()
+		l.astContext.sectionStack.pop()
 		l.astContext.importNode = nil
 	case *parser.WorkflowContext:
-		l.astContext.kindStack.pop()
+		l.astContext.sectionStack.pop()
 		l.astContext.workflowNode = nil
-		l.astContext.declarationList = nil
-	case *parser.Workflow_inputContext:
-		l.astContext.kindStack.pop()
-	case *parser.Workflow_outputContext:
-		l.astContext.kindStack.pop()
-	case *parser.Inner_workflow_elementContext:
-		l.astContext.declarationList = nil
 	case *parser.CallContext:
-		l.astContext.kindStack.pop()
+		l.astContext.sectionStack.pop()
 		l.astContext.callNode = nil
 	case *parser.TaskContext:
-		l.astContext.kindStack.pop()
+		l.astContext.sectionStack.pop()
 		l.astContext.taskNode = nil
-		l.astContext.declarationList = &l.wdl.Structs
+
+	case *parser.Workflow_inputContext:
+		l.astContext.sectionStack.pop()
+	case *parser.Workflow_outputContext:
+		l.astContext.sectionStack.pop()
 	case *parser.Task_inputContext:
-		l.astContext.kindStack.pop()
-		l.astContext.declarationList = &l.astContext.taskNode.PrvtDecls
+		l.astContext.sectionStack.pop()
 	case *parser.Task_outputContext:
-		l.astContext.kindStack.pop()
-		l.astContext.declarationList = &l.astContext.taskNode.PrvtDecls
+		l.astContext.sectionStack.pop()
 	case *parser.Task_runtime_kvContext:
-		l.astContext.exprNode = nil
+		l.astContext.exprRPNStack = nil
 	case *parser.MetaContext:
-		l.astContext.kindStack.pop()
-		l.astContext.metadataList = nil
+		l.astContext.sectionStack.pop()
 	case *parser.Parameter_metaContext:
-		l.astContext.kindStack.pop()
-		l.astContext.metadataList = nil
-	case *parser.Bound_declsContext:
-		l.astContext.exprNode = nil
+		l.astContext.sectionStack.pop()
 	case *parser.Call_inputContext:
-		l.astContext.exprNode = nil
+		l.astContext.exprRPNStack = nil
 	}
 }
 
@@ -260,16 +229,76 @@ func (l *wdlv1_1Listener) EnterUnbound_decls(ctx *parser.Unbound_declsContext) {
 		ctx.Identifier().GetText(),
 		ctx.Wdl_type().GetText(),
 	)
-	*l.astContext.declarationList = append(
-		*l.astContext.declarationList,
-		n,
+	// Try to figure out which section this declaration belongs to
+	switch {
+	case l.astContext.sectionStack.contains(wfl):
+		l.wdl.Workflow.Inputs = append(l.wdl.Workflow.Inputs, n)
+	case l.astContext.sectionStack.contains(tsk):
+		taskNode := l.wdl.Tasks[len(l.wdl.Tasks)-1]
+		taskNode.Inputs = append(taskNode.Inputs, n)
+	default:
+		l.wdl.Structs = append(l.wdl.Structs, n)
+	}
+}
+
+func (l *wdlv1_1Listener) EnterBound_decls(ctx *parser.Bound_declsContext) {
+	n := newDecl(
+		ctx.GetStart().GetStart(),
+		ctx.GetStop().GetStop(),
+		ctx.Identifier().GetText(),
+		ctx.Wdl_type().GetText(),
 	)
+	// Try to figure out which section this declaration belongs to
+	switch {
+	case l.astContext.sectionStack.contains(wfl):
+		switch {
+		case l.astContext.sectionStack.contains(ipt):
+			l.wdl.Workflow.Inputs = append(l.wdl.Workflow.Inputs, n)
+		case l.astContext.sectionStack.contains(opt):
+			l.wdl.Workflow.Outputs = append(l.wdl.Workflow.Outputs, n)
+		default:
+			l.wdl.Workflow.PrvtDecls = append(l.wdl.Workflow.PrvtDecls, n)
+		}
+	case l.astContext.sectionStack.contains(tsk):
+		taskNode := l.wdl.Tasks[len(l.wdl.Tasks)-1]
+		switch {
+		case l.astContext.sectionStack.contains(ipt):
+			taskNode.Inputs = append(taskNode.Inputs, n)
+		case l.astContext.sectionStack.contains(opt):
+			taskNode.Outputs = append(taskNode.Outputs, n)
+		default:
+			taskNode.PrvtDecls = append(taskNode.PrvtDecls, n)
+		}
+	default:
+		l.wdl.Structs = append(l.wdl.Structs, n)
+	}
+	l.astContext.exprRPNStack = &n.value
+}
+
+func (l *wdlv1_1Listener) ExitBound_decls(ctx *parser.Bound_declsContext) {
+	l.astContext.exprRPNStack = nil
 }
 
 // Parse metadata
 func (l *wdlv1_1Listener) ExitMeta_kv(ctx *parser.Meta_kvContext) {
 	k, v := ctx.MetaIdentifier().GetText(), ctx.Meta_value().GetText()
-	(*l.astContext.metadataList)[k] = v
+	switch {
+	case l.astContext.sectionStack.contains(wfl):
+		switch {
+		case l.astContext.sectionStack.contains(mtd):
+			l.wdl.Workflow.Meta[k] = v
+		case l.astContext.sectionStack.contains(pmt):
+			l.wdl.Workflow.ParameterMeta[k] = v
+		}
+	case l.astContext.sectionStack.contains(tsk):
+		taskNode := l.wdl.Tasks[len(l.wdl.Tasks)-1]
+		switch {
+		case l.astContext.sectionStack.contains(mtd):
+			taskNode.Meta[k] = v
+		case l.astContext.sectionStack.contains(pmt):
+			taskNode.ParameterMeta[k] = v
+		}
+	}
 }
 
 // Antlr4Parse parse a WDL document into WDL

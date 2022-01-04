@@ -369,7 +369,7 @@ func (l *wdlv1_1Listener) ExitPrimitive_literal(
 	if boolToken != nil {
 		v, e := newValue(Boolean, boolToken.GetText())
 		if e == nil {
-			l.astContext.exprNode.append(v)
+			l.astContext.exprRPNStack.append(v)
 		} else {
 			log.Fatal(e)
 		}
@@ -381,7 +381,7 @@ func (l *wdlv1_1Listener) ExitPrimitive_literal(
 	if noneToken != nil {
 		v, e := newValue(Any, noneToken.GetText())
 		if e == nil {
-			l.astContext.exprNode.append(v)
+			l.astContext.exprRPNStack.append(v)
 		} else {
 			log.Fatal(e)
 		}
@@ -392,7 +392,7 @@ func (l *wdlv1_1Listener) ExitPrimitive_literal(
 	// TODO: this should somehow point to the variable
 	identifierToken := ctx.Identifier()
 	if identifierToken != nil {
-		l.astContext.exprNode.append(identifierToken.GetText())
+		l.astContext.exprRPNStack.append(identifierToken.GetText())
 		return
 	}
 }
@@ -403,7 +403,7 @@ func (l *wdlv1_1Listener) ExitNumber(ctx *parser.NumberContext) {
 	if intToken != nil {
 		v, e := newValue(Int, intToken.GetText())
 		if e == nil {
-			l.astContext.exprNode.append(v)
+			l.astContext.exprRPNStack.append(v)
 		} else {
 			log.Fatal(e)
 		}
@@ -415,7 +415,7 @@ func (l *wdlv1_1Listener) ExitNumber(ctx *parser.NumberContext) {
 	if floatToken != nil {
 		v, e := newValue(Float, floatToken.GetText())
 		if e == nil {
-			l.astContext.exprNode.append(v)
+			l.astContext.exprRPNStack.append(v)
 		} else {
 			log.Fatal(e)
 		}
@@ -426,63 +426,63 @@ func (l *wdlv1_1Listener) ExitNumber(ctx *parser.NumberContext) {
 }
 
 func (l *wdlv1_1Listener) ExitLor(ctx *parser.LorContext) {
-	l.astContext.exprNode.append(wdlOr)
+	l.astContext.exprRPNStack.append(wdlOr)
 }
 
 func (l *wdlv1_1Listener) ExitLand(ctx *parser.LandContext) {
-	l.astContext.exprNode.append(wdlAnd)
+	l.astContext.exprRPNStack.append(wdlAnd)
 }
 
 func (l *wdlv1_1Listener) ExitEqeq(ctx *parser.EqeqContext) {
-	l.astContext.exprNode.append(wdlEq)
+	l.astContext.exprRPNStack.append(wdlEq)
 }
 
 func (l *wdlv1_1Listener) ExitNeq(ctx *parser.NeqContext) {
-	l.astContext.exprNode.append(wdlNeq)
+	l.astContext.exprRPNStack.append(wdlNeq)
 }
 
 func (l *wdlv1_1Listener) ExitLte(ctx *parser.LteContext) {
-	l.astContext.exprNode.append(wdlLte)
+	l.astContext.exprRPNStack.append(wdlLte)
 }
 
 func (l *wdlv1_1Listener) ExitGte(ctx *parser.GteContext) {
-	l.astContext.exprNode.append(wdlGte)
+	l.astContext.exprRPNStack.append(wdlGte)
 }
 
 func (l *wdlv1_1Listener) ExitLt(ctx *parser.LtContext) {
-	l.astContext.exprNode.append(wdlLt)
+	l.astContext.exprRPNStack.append(wdlLt)
 }
 
 func (l *wdlv1_1Listener) ExitGt(ctx *parser.GtContext) {
-	l.astContext.exprNode.append(wdlGt)
+	l.astContext.exprRPNStack.append(wdlGt)
 }
 
 func (l *wdlv1_1Listener) ExitAdd(ctx *parser.AddContext) {
-	l.astContext.exprNode.append(wdlAdd)
+	l.astContext.exprRPNStack.append(wdlAdd)
 }
 
 func (l *wdlv1_1Listener) ExitSub(ctx *parser.SubContext) {
-	l.astContext.exprNode.append(wdlSub)
+	l.astContext.exprRPNStack.append(wdlSub)
 }
 
 func (l *wdlv1_1Listener) ExitMul(ctx *parser.MulContext) {
-	l.astContext.exprNode.append(wdlMul)
+	l.astContext.exprRPNStack.append(wdlMul)
 }
 
 func (l *wdlv1_1Listener) ExitDivide(ctx *parser.DivideContext) {
-	l.astContext.exprNode.append(wdlDiv)
+	l.astContext.exprRPNStack.append(wdlDiv)
 }
 
 func (l *wdlv1_1Listener) ExitMod(ctx *parser.ModContext) {
-	l.astContext.exprNode.append(wdlMod)
+	l.astContext.exprRPNStack.append(wdlMod)
 }
 
 func (l *wdlv1_1Listener) ExitNegate(ctx *parser.NegateContext) {
-	l.astContext.exprNode.append(wdlNot)
+	l.astContext.exprRPNStack.append(wdlNot)
 }
 
 func (l *wdlv1_1Listener) ExitUnarysigned(ctx *parser.UnarysignedContext) {
 	if ctx.MINUS() != nil {
-		l.astContext.exprNode.append(wdlNeg)
+		l.astContext.exprRPNStack.append(wdlNeg)
 	}
 }
