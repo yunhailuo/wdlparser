@@ -29,8 +29,8 @@ type identifier struct {
 	isReference bool // otherwise, this is a definition
 }
 
-func newIdentifier(initialName string, isReference bool) identifier {
-	return identifier{
+func newIdentifier(initialName string, isReference bool) *identifier {
+	return &identifier{
 		initialName: initialName,
 		isReference: isReference,
 	}
@@ -40,7 +40,7 @@ func newIdentifier(initialName string, isReference bool) identifier {
 // declaration, output, runtime metadata or parameter metadata.
 type namedNode struct {
 	genNode // Implement node interface
-	name    identifier
+	name    *identifier
 	alias   string
 }
 
@@ -52,23 +52,21 @@ func newNamedNode(start, end int, name string) *namedNode {
 	}
 }
 
-// Declarations
-// A decl represents a declaration.
-type (
-	declType string
-	decl     struct {
-		genNode
-		identifier string
-		value      exprRPN
-		typ        declType
-	}
-)
+// A valueSpec represents a declaration or a key/value
+type valueSpec struct {
+	genNode
+	name  *identifier
+	typ   string
+	value *exprRPN
+}
 
-func newDecl(start, end int, identifier, rawType string) *decl {
-	d := new(decl)
+func newValueSpec(start, end int, identifier, rawType string) *valueSpec {
+	d := new(valueSpec)
 	d.genNode = genNode{start: start, end: end}
-	d.identifier = identifier
-	d.typ = declType(rawType)
+	d.name = newIdentifier(identifier, false)
+	d.typ = rawType
+	v := make(exprRPN, 0)
+	d.value = &v
 	return d
 }
 
@@ -80,7 +78,7 @@ type WDL struct {
 	Imports  []*importSpec
 	Workflow *Workflow
 	Tasks    []*Task
-	Structs  []*decl
+	Structs  []*valueSpec
 }
 
 func NewWDL(wdlPath string, size int) *WDL {
@@ -113,20 +111,17 @@ func newImportSpec(start, end int, uri string) *importSpec {
 // A Workflow represents one parsed workflow.
 type Workflow struct {
 	namedNode
-	Inputs        []*decl
-	PrvtDecls     []*decl
-	Outputs       []*decl
+	Inputs        []*valueSpec
+	PrvtDecls     []*valueSpec
+	Outputs       []*valueSpec
 	Calls         []*Call
-	Meta          map[string]string
-	ParameterMeta map[string]string
-	Elements      []string
+	Meta          []*valueSpec
+	ParameterMeta []*valueSpec
 }
 
 func NewWorkflow(start, end int, name string) *Workflow {
 	workflow := new(Workflow)
 	workflow.namedNode = *newNamedNode(start, end, name)
-	workflow.Meta = make(map[string]string)
-	workflow.ParameterMeta = make(map[string]string)
 	return workflow
 }
 
@@ -134,33 +129,29 @@ func NewWorkflow(start, end int, name string) *Workflow {
 type Call struct {
 	namedNode
 	After  string
-	Inputs map[identifier]*exprRPN
+	Inputs []*valueSpec
 }
 
 func NewCall(start, end int, name string) *Call {
 	call := new(Call)
 	call.namedNode = *newNamedNode(start, end, name)
-	call.Inputs = make(map[identifier]*exprRPN)
 	return call
 }
 
 // A Task represents one parsed task.
 type Task struct {
 	namedNode
-	Inputs        []*decl
-	PrvtDecls     []*decl
-	Outputs       []*decl
+	Inputs        []*valueSpec
+	PrvtDecls     []*valueSpec
+	Outputs       []*valueSpec
 	Command       []string
-	Runtime       map[identifier]*exprRPN
-	Meta          map[string]string
-	ParameterMeta map[string]string
+	Runtime       []*valueSpec
+	Meta          []*valueSpec
+	ParameterMeta []*valueSpec
 }
 
 func NewTask(start, end int, name string) *Task {
 	task := new(Task)
 	task.namedNode = *newNamedNode(start, end, name)
-	task.Runtime = make(map[identifier]*exprRPN)
-	task.Meta = make(map[string]string)
-	task.ParameterMeta = make(map[string]string)
 	return task
 }

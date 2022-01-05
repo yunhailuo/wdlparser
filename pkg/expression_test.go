@@ -79,7 +79,47 @@ func TestSinglePrimitiveExpression(t *testing.T) {
 				"Found %d errors in %q, expect no errors", len(err), tc.wdl,
 			)
 		}
-		v := result.Workflow.Inputs[0].value
+		v := *result.Workflow.Inputs[0].value
+		cmpOptions := cmp.Options{cmp.AllowUnexported(value{})}
+		if diff := cmp.Diff(v, tc.want, cmpOptions...); diff != "" {
+			t.Errorf("unexpected workflow calls:\n%s", diff)
+		}
+	}
+}
+
+func TestExpression(t *testing.T) {
+	testCases := []struct {
+		wdl  string
+		want interface{}
+	}{
+		// Substraction
+		{
+			"version 1.1 workflow Test {input{Int t=3+4*2/(1-5*2)+3}}",
+			exprRPN{
+				value{Int, int64(3)},
+				value{Int, int64(4)},
+				value{Int, int64(2)},
+				wdlMul,
+				value{Int, int64(1)},
+				value{Int, int64(5)},
+				value{Int, int64(2)},
+				wdlMul,
+				wdlSub,
+				wdlDiv,
+				wdlAdd,
+				value{Int, int64(3)},
+				wdlAdd,
+			},
+		},
+	}
+	for _, tc := range testCases {
+		result, err := Antlr4Parse(tc.wdl)
+		if err != nil {
+			t.Errorf(
+				"Found %d errors in %q, expect no errors", len(err), tc.wdl,
+			)
+		}
+		v := *result.Workflow.Inputs[0].value
 		cmpOptions := cmp.Options{cmp.AllowUnexported(value{})}
 		if diff := cmp.Diff(v, tc.want, cmpOptions...); diff != "" {
 			t.Errorf("unexpected workflow calls:\n%s", diff)

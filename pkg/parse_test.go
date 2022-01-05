@@ -8,7 +8,9 @@ import (
 )
 
 var commonCmpopts = cmp.Options{
-	cmp.AllowUnexported(genNode{}, identifier{}, namedNode{}),
+	cmp.AllowUnexported(
+		genNode{}, identifier{}, namedNode{}, importSpec{}, valueSpec{}, Call{},
+	),
 	cmpopts.IgnoreFields(genNode{}, "parent"),
 }
 
@@ -49,9 +51,8 @@ func TestImport(t *testing.T) {
 	for i := range result.Imports {
 		resultImports = append(resultImports, *result.Imports[i])
 	}
-	cmpOptions := append(commonCmpopts, cmp.AllowUnexported(importSpec{}))
 	if diff := cmp.Diff(
-		expectedImports, resultImports, cmpOptions...,
+		expectedImports, resultImports, commonCmpopts...,
 	); diff != "" {
 		t.Errorf("unexpected imports:\n%s", diff)
 	}
@@ -66,13 +67,13 @@ func TestWorkflowInput(t *testing.T) {
 		)
 	}
 
-	input1 := newDecl(50, 65, "input_str", "String")
-	input2 := newDecl(75, 94, "input_file_path", "File")
-	expectedInput := []*decl{input1, input2}
+	expectedInput := []*valueSpec{
+		newValueSpec(50, 65, "input_str", "String"),
+		newValueSpec(75, 94, "input_file_path", "File"),
+	}
 	resultInput := result.Workflow.Inputs
-	cmpOptions := append(commonCmpopts, cmp.AllowUnexported(decl{}))
 	if diff := cmp.Diff(
-		expectedInput, resultInput, cmpOptions...,
+		expectedInput, resultInput, commonCmpopts...,
 	); diff != "" {
 		t.Errorf("unexpected workflow input:\n%s", diff)
 	}
@@ -87,17 +88,10 @@ func TestWorkflowPrivateDeclaration(t *testing.T) {
 		)
 	}
 
-	expectedPrivateDecl := []*decl{
-		{
-			genNode:    genNode{start: 47, end: 64},
-			identifier: "s",
-			typ:        "String",
-		},
-	}
+	expectedPrivateDecl := []*valueSpec{newValueSpec(47, 64, "s", "String")}
 	resultPrivateDecl := result.Workflow.PrvtDecls
-	cmpOptions := append(commonCmpopts, cmp.AllowUnexported(decl{}))
 	if diff := cmp.Diff(
-		expectedPrivateDecl, resultPrivateDecl, cmpOptions...,
+		expectedPrivateDecl, resultPrivateDecl, commonCmpopts...,
 	); diff != "" {
 		t.Errorf("unexpected workflow private declaration:\n%s", diff)
 	}
@@ -119,9 +113,19 @@ func TestWorkflowCall(t *testing.T) {
 				name:    newIdentifier("Greeting", false),
 				alias:   "hello",
 			},
-			Inputs: map[identifier]*exprRPN{
-				newIdentifier("first_name", true): {"first_name"},
-				newIdentifier("last_name", true):  {},
+			Inputs: []*valueSpec{
+				{
+					genNode: genNode{start: 91, end: 113},
+					name:    newIdentifier("first_name", true),
+					typ:     "",
+					value:   &exprRPN{"first_name"},
+				},
+				{
+					genNode: genNode{start: 128, end: 144},
+					name:    newIdentifier("last_name", true),
+					typ:     "",
+					value:   &exprRPN{},
+				},
 			},
 		},
 		{
@@ -130,15 +134,19 @@ func TestWorkflowCall(t *testing.T) {
 				name:    newIdentifier("Goodbye", false),
 			},
 			After: "hello",
-			Inputs: map[identifier]*exprRPN{
-				newIdentifier("first_name", true): {},
+			Inputs: []*valueSpec{
+				{
+					genNode: genNode{start: 190, end: 210},
+					name:    newIdentifier("first_name", true),
+					typ:     "",
+					value:   &exprRPN{},
+				},
 			},
 		},
 	}
 	resultCalls := result.Workflow.Calls
-	cmpOptions := append(commonCmpopts, cmp.AllowUnexported(Call{}))
 	if diff := cmp.Diff(
-		expectCalls, resultCalls, cmpOptions...,
+		expectCalls, resultCalls, commonCmpopts...,
 	); diff != "" {
 		t.Errorf("unexpected workflow calls:\n%s", diff)
 	}
@@ -153,17 +161,17 @@ func TestWorkflowOutput(t *testing.T) {
 		)
 	}
 
-	expectedOutput := []*decl{
+	expectedOutput := []*valueSpec{
 		{
-			genNode:    genNode{start: 52, end: 87},
-			identifier: "output_file",
-			typ:        "File",
+			genNode: genNode{start: 52, end: 87},
+			name:    newIdentifier("output_file", false),
+			typ:     "File",
+			value:   &exprRPN{},
 		},
 	}
 	resultOutput := result.Workflow.Outputs
-	cmpOptions := append(commonCmpopts, cmp.AllowUnexported(decl{}))
 	if diff := cmp.Diff(
-		expectedOutput, resultOutput, cmpOptions...,
+		expectedOutput, resultOutput, commonCmpopts...,
 	); diff != "" {
 		t.Errorf("unexpected workflow output:\n%s", diff)
 	}
@@ -171,10 +179,25 @@ func TestWorkflowOutput(t *testing.T) {
 
 func TestWorkflowMeta(t *testing.T) {
 	inputPath := "testdata/workflow_meta.wdl"
-	expectedMeta := map[string]string{
-		"author":  `"Yunhai Luo"`,
-		"version": "1.1",
-		"for":     `"workflow"`,
+	expectedMeta := []*valueSpec{
+		{
+			genNode: genNode{start: 48, end: 67},
+			name:    newIdentifier("author", false),
+			typ:     "",
+			value:   &exprRPN{`"Yunhai Luo"`},
+		},
+		{
+			genNode: genNode{start: 77, end: 88},
+			name:    newIdentifier("version", false),
+			typ:     "",
+			value:   &exprRPN{"1.1"},
+		},
+		{
+			genNode: genNode{start: 98, end: 112},
+			name:    newIdentifier("for", false),
+			typ:     "",
+			value:   &exprRPN{`"workflow"`},
+		},
 	}
 	result, err := Antlr4Parse(inputPath)
 	if err != nil {
@@ -183,15 +206,22 @@ func TestWorkflowMeta(t *testing.T) {
 		)
 	}
 	resultMeta := result.Workflow.Meta
-	if diff := cmp.Diff(expectedMeta, resultMeta); diff != "" {
+	if diff := cmp.Diff(
+		expectedMeta, resultMeta, commonCmpopts...,
+	); diff != "" {
 		t.Errorf("unexpected workflow metadata:\n%s", diff)
 	}
 }
 
 func TestWorkflowParameterMeta(t *testing.T) {
 	inputPath := "testdata/workflow_parameter_meta.wdl"
-	expectedParameterMeta := map[string]string{
-		"name": `{help:"A name for workflow input"}`,
+	expectedParameterMeta := []*valueSpec{
+		{
+			genNode: genNode{start: 67, end: 129},
+			name:    newIdentifier("name", false),
+			typ:     "",
+			value:   &exprRPN{`{help:"A name for workflow input"}`},
+		},
 	}
 	result, err := Antlr4Parse(inputPath)
 	if err != nil {
@@ -201,7 +231,7 @@ func TestWorkflowParameterMeta(t *testing.T) {
 	}
 	resultParameterMeta := result.Workflow.ParameterMeta
 	if diff := cmp.Diff(
-		expectedParameterMeta, resultParameterMeta,
+		expectedParameterMeta, resultParameterMeta, commonCmpopts...,
 	); diff != "" {
 		t.Errorf("unexpected workflow parameter metadata:\n%s", diff)
 	}
@@ -216,17 +246,23 @@ func TestTaskInput(t *testing.T) {
 		)
 	}
 
-	expectedInput := []*decl{
+	expectedInput := []*valueSpec{
 		{
-			genNode:    genNode{start: 46, end: 66},
-			identifier: "name",
-			typ:        "String",
+			genNode: genNode{start: 46, end: 66},
+			name:    newIdentifier("name", false),
+			typ:     "String",
+			value:   &exprRPN{},
+		},
+		{
+			genNode: genNode{start: 76, end: 95},
+			name:    newIdentifier("input_file_path", false),
+			typ:     "File",
+			value:   &exprRPN{},
 		},
 	}
 	resultInput := result.Tasks[0].Inputs
-	cmpOptions := append(commonCmpopts, cmp.AllowUnexported(decl{}))
 	if diff := cmp.Diff(
-		expectedInput, resultInput, cmpOptions...,
+		expectedInput, resultInput, commonCmpopts...,
 	); diff != "" {
 		t.Errorf("unexpected task input:\n%s", diff)
 	}
@@ -241,17 +277,17 @@ func TestTaskPrivateDeclaration(t *testing.T) {
 		)
 	}
 
-	expectedPrivateDecl := []*decl{
+	expectedPrivateDecl := []*valueSpec{
 		{
-			genNode:    genNode{start: 43, end: 60},
-			identifier: "s",
-			typ:        "String",
+			genNode: genNode{start: 43, end: 60},
+			name:    newIdentifier("s", false),
+			typ:     "String",
+			value:   &exprRPN{},
 		},
 	}
 	resultPrivateDecl := result.Tasks[0].PrvtDecls
-	cmpOptions := append(commonCmpopts, cmp.AllowUnexported(decl{}))
 	if diff := cmp.Diff(
-		expectedPrivateDecl, resultPrivateDecl, cmpOptions...,
+		expectedPrivateDecl, resultPrivateDecl, commonCmpopts...,
 	); diff != "" {
 		t.Errorf("unexpected task private declaration:\n%s", diff)
 	}
@@ -283,17 +319,17 @@ func TestTaskOutput(t *testing.T) {
 		)
 	}
 
-	expectedOutput := []*decl{
+	expectedOutput := []*valueSpec{
 		{
-			genNode:    genNode{start: 47, end: 73},
-			identifier: "output_file",
-			typ:        "File",
+			genNode: genNode{start: 47, end: 73},
+			name:    newIdentifier("output_file", false),
+			typ:     "File",
+			value:   &exprRPN{},
 		},
 	}
 	resultOutput := result.Tasks[0].Outputs
-	cmpOptions := append(commonCmpopts, cmp.AllowUnexported(decl{}))
 	if diff := cmp.Diff(
-		expectedOutput, resultOutput, cmpOptions...,
+		expectedOutput, resultOutput, commonCmpopts...,
 	); diff != "" {
 		t.Errorf("unexpected task output:\n%s", diff)
 	}
@@ -301,8 +337,13 @@ func TestTaskOutput(t *testing.T) {
 
 func TestTaskRuntime(t *testing.T) {
 	inputPath := "testdata/task_runtime.wdl"
-	expectedRuntime := map[identifier]*exprRPN{
-		newIdentifier("container", false): {},
+	expectedRuntime := []*valueSpec{
+		{
+			genNode: genNode{start: 50, end: 75},
+			name:    newIdentifier("container", false),
+			typ:     "",
+			value:   &exprRPN{},
+		},
 	}
 	result, err := Antlr4Parse(inputPath)
 	if err != nil {
@@ -311,17 +352,34 @@ func TestTaskRuntime(t *testing.T) {
 		)
 	}
 	resultRuntime := result.Tasks[0].Runtime
-	if diff := cmp.Diff(expectedRuntime, resultRuntime); diff != "" {
+	if diff := cmp.Diff(
+		expectedRuntime, resultRuntime, commonCmpopts...,
+	); diff != "" {
 		t.Errorf("unexpected task runtime:\n%s", diff)
 	}
 }
 
 func TestTaskMeta(t *testing.T) {
 	inputPath := "testdata/task_meta.wdl"
-	expectedMeta := map[string]string{
-		"author":  `"Yunhai Luo"`,
-		"version": "1.1",
-		"for":     `"task"`,
+	expectedMeta := []*valueSpec{
+		{
+			genNode: genNode{start: 44, end: 63},
+			name:    newIdentifier("author", false),
+			typ:     "",
+			value:   &exprRPN{`"Yunhai Luo"`},
+		},
+		{
+			genNode: genNode{start: 73, end: 84},
+			name:    newIdentifier("version", false),
+			typ:     "",
+			value:   &exprRPN{"1.1"},
+		},
+		{
+			genNode: genNode{start: 94, end: 104},
+			name:    newIdentifier("for", false),
+			typ:     "",
+			value:   &exprRPN{`"task"`},
+		},
 	}
 	result, err := Antlr4Parse(inputPath)
 	if err != nil {
@@ -330,15 +388,22 @@ func TestTaskMeta(t *testing.T) {
 		)
 	}
 	resultMeta := result.Tasks[0].Meta
-	if diff := cmp.Diff(expectedMeta, resultMeta); diff != "" {
+	if diff := cmp.Diff(
+		expectedMeta, resultMeta, commonCmpopts...,
+	); diff != "" {
 		t.Errorf("unexpected task metadata:\n%s", diff)
 	}
 }
 
 func TestTaskParameterMeta(t *testing.T) {
 	inputPath := "testdata/task_parameter_meta.wdl"
-	expectedParameterMeta := map[string]string{
-		"name": `{help:"One name as task input"}`,
+	expectedParameterMeta := []*valueSpec{
+		{
+			genNode: genNode{start: 63, end: 122},
+			name:    newIdentifier("name", false),
+			typ:     "",
+			value:   &exprRPN{`{help:"One name as task input"}`},
+		},
 	}
 	result, err := Antlr4Parse(inputPath)
 	if err != nil {
@@ -348,7 +413,7 @@ func TestTaskParameterMeta(t *testing.T) {
 	}
 	resultParameterMeta := result.Tasks[0].ParameterMeta
 	if diff := cmp.Diff(
-		expectedParameterMeta, resultParameterMeta,
+		expectedParameterMeta, resultParameterMeta, commonCmpopts...,
 	); diff != "" {
 		t.Errorf("unexpected task parameter metadata:\n%s", diff)
 	}
