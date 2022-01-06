@@ -392,7 +392,9 @@ func (l *wdlv1_1Listener) ExitPrimitive_literal(
 	// TODO: this should somehow point to the variable
 	identifierToken := ctx.Identifier()
 	if identifierToken != nil {
-		l.astContext.exprRPNStack.append(identifierToken.GetText())
+		l.astContext.exprRPNStack.append(
+			newIdentifier(identifierToken.GetText(), true),
+		)
 		return
 	}
 }
@@ -423,6 +425,24 @@ func (l *wdlv1_1Listener) ExitNumber(ctx *parser.NumberContext) {
 	}
 
 	log.Fatalf("Failed to parse %v: %v", "Number", ctx.GetText())
+}
+
+func (l *wdlv1_1Listener) ExitString_part(ctx *parser.String_partContext) {
+	v, e := newValue(String, ctx.GetText())
+	if e == nil {
+		l.astContext.exprRPNStack.append(v)
+	} else {
+		log.Fatal(e)
+	}
+}
+
+func (l *wdlv1_1Listener) ExitString_expr_with_string_part(
+	ctx *parser.String_expr_with_string_partContext,
+) {
+	// join expr and string within string_expr_with_string_part
+	l.astContext.exprRPNStack.append(wdlAdd)
+	// join others in r_string
+	l.astContext.exprRPNStack.append(wdlAdd)
 }
 
 func (l *wdlv1_1Listener) ExitLor(ctx *parser.LorContext) {

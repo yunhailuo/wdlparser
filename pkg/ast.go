@@ -94,13 +94,14 @@ func NewWDL(wdlPath string, size int) *WDL {
 
 type importSpec struct {
 	namedNode
-	uri           string
+	uri           *exprRPN
 	importAliases map[string]string // key is original name and value is alias
 }
 
 func newImportSpec(start, end int, uri string) *importSpec {
 	is := new(importSpec)
-	is.uri = uri
+	v := make(exprRPN, 0)
+	is.uri = &v
 	is.namedNode = *newNamedNode(
 		start, end, strings.TrimSuffix(path.Base(uri), ".wdl"),
 	)

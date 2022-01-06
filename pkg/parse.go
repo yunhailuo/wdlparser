@@ -90,6 +90,7 @@ func (l *wdlv1_1Listener) EnterEveryRule(ctx antlr.ParserRuleContext) {
 		n.setParent(l.wdl)
 		l.wdl.Imports = append(l.wdl.Imports, n)
 		l.astContext.importNode = n
+		l.astContext.exprRPNStack = n.uri
 	case *parser.WorkflowContext:
 		l.astContext.sectionStack.push(wfl)
 		l.wdl.Workflow = NewWorkflow(
@@ -165,6 +166,7 @@ func (l *wdlv1_1Listener) ExitEveryRule(ctx antlr.ParserRuleContext) {
 	case *parser.Import_docContext:
 		l.astContext.sectionStack.pop()
 		l.astContext.importNode = nil
+		l.astContext.exprRPNStack = nil
 	case *parser.WorkflowContext:
 		l.astContext.sectionStack.pop()
 		l.astContext.workflowNode = nil

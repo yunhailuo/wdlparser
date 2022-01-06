@@ -9,7 +9,13 @@ import (
 
 var commonCmpopts = cmp.Options{
 	cmp.AllowUnexported(
-		genNode{}, identifier{}, namedNode{}, importSpec{}, valueSpec{}, Call{},
+		genNode{},
+		identifier{},
+		namedNode{},
+		importSpec{},
+		valueSpec{},
+		Call{},
+		value{},
 	),
 	cmpopts.IgnoreFields(genNode{}, "parent"),
 }
@@ -37,16 +43,43 @@ func TestImport(t *testing.T) {
 		)
 	}
 
-	import1 := newImportSpec(13, 29, "test.wdl")
-	import2 := newImportSpec(31, 88, "http://example.com/lib/analysis_tasks")
-	import2.alias = "analysis"
-	import3 := newImportSpec(90, 216, "https://example.com/lib/stdlib.wdl")
-	import3.importAliases = map[string]string{
-		"Parent":     "Parent2",
-		"Child":      "Child2",
-		"GrandChild": "GrandChild2",
+	expectedImports := []importSpec{
+		{
+			namedNode: namedNode{
+				genNode: genNode{start: 13, end: 29},
+				name:    newIdentifier("test", false),
+			},
+			uri: &exprRPN{
+				value{String, "test.wdl"},
+			},
+			importAliases: map[string]string{},
+		},
+		{
+			namedNode: namedNode{
+				genNode: genNode{start: 31, end: 88},
+				name:    newIdentifier("analysis_tasks", false),
+				alias:   "analysis",
+			},
+			uri: &exprRPN{
+				value{String, "http://example.com/lib/analysis_tasks"},
+			},
+			importAliases: map[string]string{},
+		},
+		{
+			namedNode: namedNode{
+				genNode: genNode{start: 90, end: 216},
+				name:    newIdentifier("stdlib", false),
+			},
+			uri: &exprRPN{
+				value{String, "https://example.com/lib/stdlib.wdl"},
+			},
+			importAliases: map[string]string{
+				"Parent":     "Parent2",
+				"Child":      "Child2",
+				"GrandChild": "GrandChild2",
+			},
+		},
 	}
-	expectedImports := []importSpec{*import1, *import2, *import3}
 	resultImports := []importSpec{}
 	for i := range result.Imports {
 		resultImports = append(resultImports, *result.Imports[i])
@@ -88,7 +121,14 @@ func TestWorkflowPrivateDeclaration(t *testing.T) {
 		)
 	}
 
-	expectedPrivateDecl := []*valueSpec{newValueSpec(47, 64, "s", "String")}
+	expectedPrivateDecl := []*valueSpec{
+		{
+			genNode: genNode{start: 47, end: 64},
+			name:    newIdentifier("s", false),
+			typ:     "String",
+			value:   &exprRPN{value{String, "Hello"}},
+		},
+	}
 	resultPrivateDecl := result.Workflow.PrvtDecls
 	if diff := cmp.Diff(
 		expectedPrivateDecl, resultPrivateDecl, commonCmpopts...,
@@ -118,13 +158,13 @@ func TestWorkflowCall(t *testing.T) {
 					genNode: genNode{start: 91, end: 113},
 					name:    newIdentifier("first_name", true),
 					typ:     "",
-					value:   &exprRPN{"first_name"},
+					value:   &exprRPN{newIdentifier("first_name", true)},
 				},
 				{
 					genNode: genNode{start: 128, end: 144},
 					name:    newIdentifier("last_name", true),
 					typ:     "",
-					value:   &exprRPN{},
+					value:   &exprRPN{value{String, "Luo"}},
 				},
 			},
 		},
@@ -139,7 +179,7 @@ func TestWorkflowCall(t *testing.T) {
 					genNode: genNode{start: 190, end: 210},
 					name:    newIdentifier("first_name", true),
 					typ:     "",
-					value:   &exprRPN{},
+					value:   &exprRPN{value{String, "Yunhai"}},
 				},
 			},
 		},
@@ -166,7 +206,7 @@ func TestWorkflowOutput(t *testing.T) {
 			genNode: genNode{start: 52, end: 87},
 			name:    newIdentifier("output_file", false),
 			typ:     "File",
-			value:   &exprRPN{},
+			value:   &exprRPN{value{String, "/Path/to/output"}},
 		},
 	}
 	resultOutput := result.Workflow.Outputs
@@ -251,7 +291,7 @@ func TestTaskInput(t *testing.T) {
 			genNode: genNode{start: 46, end: 66},
 			name:    newIdentifier("name", false),
 			typ:     "String",
-			value:   &exprRPN{},
+			value:   &exprRPN{value{String, "World"}},
 		},
 		{
 			genNode: genNode{start: 76, end: 95},
@@ -282,7 +322,7 @@ func TestTaskPrivateDeclaration(t *testing.T) {
 			genNode: genNode{start: 43, end: 60},
 			name:    newIdentifier("s", false),
 			typ:     "String",
-			value:   &exprRPN{},
+			value:   &exprRPN{value{String, "Hello"}},
 		},
 	}
 	resultPrivateDecl := result.Tasks[0].PrvtDecls
@@ -342,7 +382,7 @@ func TestTaskRuntime(t *testing.T) {
 			genNode: genNode{start: 50, end: 75},
 			name:    newIdentifier("container", false),
 			typ:     "",
-			value:   &exprRPN{},
+			value:   &exprRPN{value{String, "ubuntu:latest"}},
 		},
 	}
 	result, err := Antlr4Parse(inputPath)

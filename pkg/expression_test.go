@@ -6,6 +6,105 @@ import (
 	"github.com/google/go-cmp/cmp"
 )
 
+func TestPrimitiveLiteral(t *testing.T) {
+	testCases := []struct {
+		wdl  string
+		want interface{}
+	}{
+		{
+			"version 1.1 workflow Test {input{Int t=identifier}}",
+			exprRPN{newIdentifier("identifier", true)},
+		},
+		{
+			"version 1.1 workflow Test {input{Boolean t=true}}",
+			exprRPN{value{Boolean, true}},
+		},
+		{
+			"version 1.1 workflow Test {input{Boolean t=false}}",
+			exprRPN{value{Boolean, false}},
+		},
+		{
+			"version 1.1 workflow Test {input{Int t=00}}",
+			exprRPN{value{Int, int64(0)}},
+		},
+		{
+			"version 1.1 workflow Test {input{Float t=0.0}}",
+			exprRPN{value{Float, float64(0.0)}},
+		},
+		{
+			"version 1.1 workflow Test {input{String t='single quote string'}}",
+			exprRPN{value{String, "single quote string"}},
+		},
+		{
+			`version 1.1 workflow Test {input{String t="double quote string"}}`,
+			exprRPN{value{String, "double quote string"}},
+		},
+	}
+	for _, tc := range testCases {
+		result, err := Antlr4Parse(tc.wdl)
+		if err != nil {
+			t.Errorf(
+				"Found %d errors in %q, expect no errors", len(err), tc.wdl,
+			)
+		}
+		v := *result.Workflow.Inputs[0].value
+		if diff := cmp.Diff(v, tc.want, commonCmpopts...); diff != "" {
+			t.Errorf("unexpected workflow calls:\n%s", diff)
+		}
+	}
+}
+
+func TestExpressionPlaceholder(t *testing.T) {
+	testCases := []struct {
+		wdl  string
+		want interface{}
+	}{
+		{
+			`version 1.1 workflow Test {input{String t="~{1 + i}"}}`,
+			exprRPN{
+				value{String, ""},
+				value{Int, int64(1)},
+				newIdentifier("i", true),
+				wdlAdd,
+				value{String, ""},
+				wdlAdd,
+				wdlAdd,
+			},
+		},
+		{
+			`version 1.1 workflow Test ` +
+				`{input{String t="grep '~{start}...~{end}' ~{file}"}}`,
+			exprRPN{
+				value{String, "grep '"},
+				newIdentifier("start", true),
+				value{String, "..."},
+				wdlAdd,
+				wdlAdd,
+				newIdentifier("end", true),
+				value{String, "' "},
+				wdlAdd,
+				wdlAdd,
+				newIdentifier("file", true),
+				value{String, ""},
+				wdlAdd,
+				wdlAdd,
+			},
+		},
+	}
+	for _, tc := range testCases {
+		result, err := Antlr4Parse(tc.wdl)
+		if err != nil {
+			t.Errorf(
+				"Found %d errors in %q, expect no errors", len(err), tc.wdl,
+			)
+		}
+		v := *result.Workflow.Inputs[0].value
+		if diff := cmp.Diff(v, tc.want, commonCmpopts...); diff != "" {
+			t.Errorf("unexpected workflow calls:\n%s", diff)
+		}
+	}
+}
+
 func TestSinglePrimitiveExpression(t *testing.T) {
 	testCases := []struct {
 		wdl  string
@@ -80,8 +179,7 @@ func TestSinglePrimitiveExpression(t *testing.T) {
 			)
 		}
 		v := *result.Workflow.Inputs[0].value
-		cmpOptions := cmp.Options{cmp.AllowUnexported(value{})}
-		if diff := cmp.Diff(v, tc.want, cmpOptions...); diff != "" {
+		if diff := cmp.Diff(v, tc.want, commonCmpopts...); diff != "" {
 			t.Errorf("unexpected workflow calls:\n%s", diff)
 		}
 	}
@@ -120,8 +218,7 @@ func TestExpression(t *testing.T) {
 			)
 		}
 		v := *result.Workflow.Inputs[0].value
-		cmpOptions := cmp.Options{cmp.AllowUnexported(value{})}
-		if diff := cmp.Diff(v, tc.want, cmpOptions...); diff != "" {
+		if diff := cmp.Diff(v, tc.want, commonCmpopts...); diff != "" {
 			t.Errorf("unexpected workflow calls:\n%s", diff)
 		}
 	}
