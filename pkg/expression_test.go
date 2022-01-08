@@ -48,7 +48,7 @@ func TestPrimitiveLiteral(t *testing.T) {
 			)
 		}
 		v := *result.Workflow.Inputs[0].value
-		if diff := cmp.Diff(v, tc.want, commonCmpopts...); diff != "" {
+		if diff := cmp.Diff(tc.want, v, commonCmpopts...); diff != "" {
 			t.Errorf("unexpected workflow calls:\n%s", diff)
 		}
 	}
@@ -63,9 +63,11 @@ func TestExpressionPlaceholder(t *testing.T) {
 			`version 1.1 workflow Test {input{String t="~{1 + i}"}}`,
 			exprRPN{
 				value{String, ""},
-				value{Int, int64(1)},
-				newIdentifier("i", true),
-				wdlAdd,
+				&exprRPN{
+					value{Int, int64(1)},
+					newIdentifier("i", true),
+					wdlAdd,
+				},
 				value{String, ""},
 				wdlAdd,
 				wdlAdd,
@@ -76,15 +78,15 @@ func TestExpressionPlaceholder(t *testing.T) {
 				`{input{String t="grep '~{start}...~{end}' ~{file}"}}`,
 			exprRPN{
 				value{String, "grep '"},
-				newIdentifier("start", true),
+				&exprRPN{newIdentifier("start", true)},
 				value{String, "..."},
 				wdlAdd,
 				wdlAdd,
-				newIdentifier("end", true),
+				&exprRPN{newIdentifier("end", true)},
 				value{String, "' "},
 				wdlAdd,
 				wdlAdd,
-				newIdentifier("file", true),
+				&exprRPN{newIdentifier("file", true)},
 				value{String, ""},
 				wdlAdd,
 				wdlAdd,
@@ -99,7 +101,7 @@ func TestExpressionPlaceholder(t *testing.T) {
 			)
 		}
 		v := *result.Workflow.Inputs[0].value
-		if diff := cmp.Diff(v, tc.want, commonCmpopts...); diff != "" {
+		if diff := cmp.Diff(tc.want, v, commonCmpopts...); diff != "" {
 			t.Errorf("unexpected workflow calls:\n%s", diff)
 		}
 	}
@@ -112,11 +114,11 @@ func TestSinglePrimitiveExpression(t *testing.T) {
 	}{
 		{
 			"version 1.1 workflow Test {input{Int t=-3}}",
-			exprRPN{value{Int, int64(3)}, wdlNeg},
+			exprRPN{&exprRPN{value{Int, int64(3)}}, wdlNeg},
 		},
 		{
 			"version 1.1 workflow Test {input{Boolean t=!true}}",
-			exprRPN{value{Boolean, true}, wdlNot},
+			exprRPN{&exprRPN{value{Boolean, true}}, wdlNot},
 		},
 		{
 			"version 1.1 workflow Test {input{Int t=3.0/4.0}}",
@@ -179,7 +181,7 @@ func TestSinglePrimitiveExpression(t *testing.T) {
 			)
 		}
 		v := *result.Workflow.Inputs[0].value
-		if diff := cmp.Diff(v, tc.want, commonCmpopts...); diff != "" {
+		if diff := cmp.Diff(tc.want, v, commonCmpopts...); diff != "" {
 			t.Errorf("unexpected workflow calls:\n%s", diff)
 		}
 	}
@@ -198,11 +200,12 @@ func TestExpression(t *testing.T) {
 				value{Int, int64(4)},
 				value{Int, int64(2)},
 				wdlMul,
-				value{Int, int64(1)},
-				value{Int, int64(5)},
-				value{Int, int64(2)},
-				wdlMul,
-				wdlSub,
+				&exprRPN{value{Int, int64(1)},
+					value{Int, int64(5)},
+					value{Int, int64(2)},
+					wdlMul,
+					wdlSub,
+				},
 				wdlDiv,
 				wdlAdd,
 				value{Int, int64(3)},
@@ -218,7 +221,7 @@ func TestExpression(t *testing.T) {
 			)
 		}
 		v := *result.Workflow.Inputs[0].value
-		if diff := cmp.Diff(v, tc.want, commonCmpopts...); diff != "" {
+		if diff := cmp.Diff(tc.want, v, commonCmpopts...); diff != "" {
 			t.Errorf("unexpected workflow calls:\n%s", diff)
 		}
 	}

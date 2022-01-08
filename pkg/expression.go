@@ -16,6 +16,41 @@ func (e *exprRPN) append(elem interface{}) {
 	*e = append(*e, elem)
 }
 
+func (e *exprRPN) extend(e2 *exprRPN) {
+	*e = append(*e, *e2...)
+}
+
+type exprStack []*exprRPN
+
+func (s *exprStack) push(e *exprRPN) {
+	*s = append(*s, e)
+}
+
+func (s *exprStack) pop() *exprRPN {
+	stackDepth := len(*s)
+	if stackDepth > 0 {
+		e := (*s)[stackDepth-1]
+		// Won't zero the popped element since nodeKind is limited and small
+		*s = (*s)[:stackDepth-1]
+		return e
+	}
+	log.Fatalf("pop error: expression stack %v is empty", *s)
+	return nil
+}
+
+func (s *exprStack) front() *exprRPN {
+	stackDepth := len(*s)
+	if stackDepth > 0 {
+		return (*s)[stackDepth-1]
+	}
+	log.Fatalf("front error: expression stack %v is empty", *s)
+	return nil
+}
+
+func (s *exprStack) isEmpty() bool {
+	return len(*s) == 0
+}
+
 // A Type represents a type of WDL.
 // All types implement the Type interface.
 type Type interface {
@@ -362,6 +397,13 @@ func logicalOr(lhs, rhs value) (value, error) {
 
 // Antlr4 listeners
 
+func (l *wdlv1_1Listener) EnterExpr(ctx *parser.ExprContext) {
+	l.astContext.exprStack = append(
+		l.astContext.exprStack,
+		&exprRPN{},
+	)
+}
+
 func (l *wdlv1_1Listener) ExitPrimitive_literal(
 	ctx *parser.Primitive_literalContext,
 ) {
@@ -370,7 +412,7 @@ func (l *wdlv1_1Listener) ExitPrimitive_literal(
 	if boolToken != nil {
 		v, e := newValue(Boolean, boolToken.GetText())
 		if e == nil {
-			l.astContext.exprRPNStack.append(v)
+			l.astContext.exprStack.front().append(v)
 		} else {
 			log.Fatal(e)
 		}
@@ -382,7 +424,7 @@ func (l *wdlv1_1Listener) ExitPrimitive_literal(
 	if noneToken != nil {
 		v, e := newValue(Any, noneToken.GetText())
 		if e == nil {
-			l.astContext.exprRPNStack.append(v)
+			l.astContext.exprStack.front().append(v)
 		} else {
 			log.Fatal(e)
 		}
@@ -393,7 +435,7 @@ func (l *wdlv1_1Listener) ExitPrimitive_literal(
 	// TODO: this should somehow point to the variable
 	identifierToken := ctx.Identifier()
 	if identifierToken != nil {
-		l.astContext.exprRPNStack.append(
+		l.astContext.exprStack.front().append(
 			newIdentifier(identifierToken.GetText(), true),
 		)
 		return
@@ -406,7 +448,7 @@ func (l *wdlv1_1Listener) ExitNumber(ctx *parser.NumberContext) {
 	if intToken != nil {
 		v, e := newValue(Int, intToken.GetText())
 		if e == nil {
-			l.astContext.exprRPNStack.append(v)
+			l.astContext.exprStack.front().append(v)
 		} else {
 			log.Fatal(e)
 		}
@@ -418,7 +460,7 @@ func (l *wdlv1_1Listener) ExitNumber(ctx *parser.NumberContext) {
 	if floatToken != nil {
 		v, e := newValue(Float, floatToken.GetText())
 		if e == nil {
-			l.astContext.exprRPNStack.append(v)
+			l.astContext.exprStack.front().append(v)
 		} else {
 			log.Fatal(e)
 		}
@@ -431,79 +473,96 @@ func (l *wdlv1_1Listener) ExitNumber(ctx *parser.NumberContext) {
 func (l *wdlv1_1Listener) ExitString_part(ctx *parser.String_partContext) {
 	v, e := newValue(String, ctx.GetText())
 	if e == nil {
-		l.astContext.exprRPNStack.append(v)
+		l.astContext.exprStack.front().append(v)
 	} else {
 		log.Fatal(e)
 	}
+}
+func (l *wdlv1_1Listener) ExitString_expr_part(
+	ctx *parser.String_expr_partContext,
+) {
+	e := l.astContext.exprStack.pop()
+	l.astContext.exprStack.front().append(e)
 }
 
 func (l *wdlv1_1Listener) ExitString_expr_with_string_part(
 	ctx *parser.String_expr_with_string_partContext,
 ) {
 	// join expr and string within string_expr_with_string_part
-	l.astContext.exprRPNStack.append(wdlAdd)
+	l.astContext.exprStack.front().append(wdlAdd)
 	// join others in wdl_string
-	l.astContext.exprRPNStack.append(wdlAdd)
+	l.astContext.exprStack.front().append(wdlAdd)
 }
 
 func (l *wdlv1_1Listener) ExitLor(ctx *parser.LorContext) {
-	l.astContext.exprRPNStack.append(wdlOr)
+	l.astContext.exprStack.front().append(wdlOr)
 }
 
 func (l *wdlv1_1Listener) ExitLand(ctx *parser.LandContext) {
-	l.astContext.exprRPNStack.append(wdlAnd)
+	l.astContext.exprStack.front().append(wdlAnd)
 }
 
 func (l *wdlv1_1Listener) ExitEqeq(ctx *parser.EqeqContext) {
-	l.astContext.exprRPNStack.append(wdlEq)
+	l.astContext.exprStack.front().append(wdlEq)
 }
 
 func (l *wdlv1_1Listener) ExitNeq(ctx *parser.NeqContext) {
-	l.astContext.exprRPNStack.append(wdlNeq)
+	l.astContext.exprStack.front().append(wdlNeq)
 }
 
 func (l *wdlv1_1Listener) ExitLte(ctx *parser.LteContext) {
-	l.astContext.exprRPNStack.append(wdlLte)
+	l.astContext.exprStack.front().append(wdlLte)
 }
 
 func (l *wdlv1_1Listener) ExitGte(ctx *parser.GteContext) {
-	l.astContext.exprRPNStack.append(wdlGte)
+	l.astContext.exprStack.front().append(wdlGte)
 }
 
 func (l *wdlv1_1Listener) ExitLt(ctx *parser.LtContext) {
-	l.astContext.exprRPNStack.append(wdlLt)
+	l.astContext.exprStack.front().append(wdlLt)
 }
 
 func (l *wdlv1_1Listener) ExitGt(ctx *parser.GtContext) {
-	l.astContext.exprRPNStack.append(wdlGt)
+	l.astContext.exprStack.front().append(wdlGt)
 }
 
 func (l *wdlv1_1Listener) ExitAdd(ctx *parser.AddContext) {
-	l.astContext.exprRPNStack.append(wdlAdd)
+	l.astContext.exprStack.front().append(wdlAdd)
 }
 
 func (l *wdlv1_1Listener) ExitSub(ctx *parser.SubContext) {
-	l.astContext.exprRPNStack.append(wdlSub)
+	l.astContext.exprStack.front().append(wdlSub)
 }
 
 func (l *wdlv1_1Listener) ExitMul(ctx *parser.MulContext) {
-	l.astContext.exprRPNStack.append(wdlMul)
+	l.astContext.exprStack.front().append(wdlMul)
 }
 
 func (l *wdlv1_1Listener) ExitDivide(ctx *parser.DivideContext) {
-	l.astContext.exprRPNStack.append(wdlDiv)
+	l.astContext.exprStack.front().append(wdlDiv)
 }
 
 func (l *wdlv1_1Listener) ExitMod(ctx *parser.ModContext) {
-	l.astContext.exprRPNStack.append(wdlMod)
+	l.astContext.exprStack.front().append(wdlMod)
 }
 
 func (l *wdlv1_1Listener) ExitNegate(ctx *parser.NegateContext) {
-	l.astContext.exprRPNStack.append(wdlNot)
+	e := l.astContext.exprStack.pop()
+	l.astContext.exprStack.front().append(e)
+	l.astContext.exprStack.front().append(wdlNot)
+}
+
+func (l *wdlv1_1Listener) ExitExpression_group(
+	ctx *parser.Expression_groupContext,
+) {
+	e := l.astContext.exprStack.pop()
+	l.astContext.exprStack.front().append(e)
 }
 
 func (l *wdlv1_1Listener) ExitUnarysigned(ctx *parser.UnarysignedContext) {
+	e := l.astContext.exprStack.pop()
+	l.astContext.exprStack.front().append(e)
 	if ctx.MINUS() != nil {
-		l.astContext.exprRPNStack.append(wdlNeg)
+		l.astContext.exprStack.front().append(wdlNeg)
 	}
 }

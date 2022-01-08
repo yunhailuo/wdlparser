@@ -64,7 +64,7 @@ type wdlv1_1Listener struct {
 		workflowNode *Workflow
 		callNode     *Call
 		taskNode     *Task
-		exprRPNStack *exprRPN
+		exprStack    exprStack
 	}
 }
 
@@ -131,7 +131,9 @@ func (l *wdlv1_1Listener) EnterImport_doc(ctx *parser.Import_docContext) {
 		strings.Trim(ctx.Wdl_string().GetText(), `"`),
 	)
 	l.wdl.Imports = append(l.wdl.Imports, l.astContext.importNode)
-	l.astContext.exprRPNStack = l.astContext.importNode.uri
+	// Special case where import URI here uses wdl_string directly instead of
+	// through expression; so need to setup an exprRPN for wdl_string
+	l.astContext.exprStack.push(l.astContext.importNode.uri)
 }
 
 func (l *wdlv1_1Listener) ExitImport_as(ctx *parser.Import_asContext) {
@@ -189,7 +191,14 @@ func (l *wdlv1_1Listener) EnterCall_input(ctx *parser.Call_inputContext) {
 	)
 	v.name.isReference = true
 	l.astContext.callNode.Inputs = append(l.astContext.callNode.Inputs, v)
-	l.astContext.exprRPNStack = v.value
+	l.astContext.exprStack.push(v.value)
+}
+
+func (l *wdlv1_1Listener) ExitCall_input(ctx *parser.Call_inputContext) {
+	e := l.astContext.exprStack.pop()
+	if !l.astContext.exprStack.isEmpty() {
+		l.astContext.exprStack.front().extend(e)
+	}
 }
 
 // Parse a task
@@ -221,7 +230,14 @@ func (l *wdlv1_1Listener) EnterTask_runtime_kv(
 		"",
 	)
 	l.astContext.taskNode.Runtime = append(l.astContext.taskNode.Runtime, v)
-	l.astContext.exprRPNStack = v.value
+	l.astContext.exprStack.push(v.value)
+}
+
+func (l *wdlv1_1Listener) ExitTask_runtime_kv(
+	ctx *parser.Task_runtime_kvContext,
+) {
+	e := l.astContext.exprStack.pop()
+	l.astContext.exprStack.front().extend(e)
 }
 
 // Parse any declaration
@@ -275,11 +291,12 @@ func (l *wdlv1_1Listener) EnterBound_decls(ctx *parser.Bound_declsContext) {
 	default:
 		l.wdl.Structs = append(l.wdl.Structs, n)
 	}
-	l.astContext.exprRPNStack = n.value
+	l.astContext.exprStack.push(n.value)
 }
 
 func (l *wdlv1_1Listener) ExitBound_decls(ctx *parser.Bound_declsContext) {
-	l.astContext.exprRPNStack = nil
+	e := l.astContext.exprStack.pop()
+	l.astContext.exprStack.front().extend(e)
 }
 
 // Parse metadata
