@@ -10,10 +10,11 @@ import (
 	"strings"
 
 	"github.com/antlr/antlr4/runtime/Go/antlr"
-	parser "github.com/yunhailuo/wdlparser/pkg/wdlv1_1"
+	parser "github.com/yunhailuo/wdlparser/pkg/antlr4_grammar/1_1"
 )
 
-// wdlSection describes what WDL entity a node represents.
+// wdlSection describes what WDL entity a block of code represents.
+// Typically it's a namespace or a scope. But it also includes metadata section.
 type wdlSection int
 
 const (
@@ -56,9 +57,9 @@ func (nks *sectionStack) contains(nk wdlSection) bool {
 
 type wdlv1_1Listener struct {
 	*parser.BaseWdlV1_1ParserListener
-	wdl        *WDL
-	astContext struct {
-		sectionStack sectionStack
+	wdl          *WDL
+	sectionStack sectionStack
+	astContext   struct {
 		importNode   *importSpec
 		workflowNode *Workflow
 		callNode     *Call
@@ -71,128 +72,48 @@ func newWdlv1_1Listener(wdl *WDL) *wdlv1_1Listener {
 	return &wdlv1_1Listener{wdl: wdl}
 }
 
-// Manage AST context with listener
+// Manage section stack when listener walks
 func (l *wdlv1_1Listener) EnterEveryRule(ctx antlr.ParserRuleContext) {
-	switch c := ctx.(type) {
-	// Set up new AST node
-	// and point current listener AST context to the new node
+	switch ctx.(type) {
 	case *parser.DocumentContext:
-		// This root context is special
-		// as the root AST node is already set up as `l.wdl`
-		l.astContext.sectionStack.push(doc)
+		l.sectionStack.push(doc)
 	case *parser.Import_docContext:
-		l.astContext.sectionStack.push(imp)
-		n := newImportSpec(
-			c.GetStart().GetStart(),
-			c.GetStop().GetStop(),
-			strings.Trim(c.R_string().GetText(), `"`),
-		)
-		n.setParent(l.wdl)
-		l.wdl.Imports = append(l.wdl.Imports, n)
-		l.astContext.importNode = n
-		l.astContext.exprRPNStack = n.uri
+		l.sectionStack.push(imp)
 	case *parser.WorkflowContext:
-		l.astContext.sectionStack.push(wfl)
-		l.wdl.Workflow = NewWorkflow(
-			c.GetStart().GetStart(),
-			c.GetStop().GetStop(),
-			c.Identifier().GetText(),
-		)
-		l.wdl.Workflow.setParent(l.wdl)
-		l.astContext.workflowNode = l.wdl.Workflow
+		l.sectionStack.push(wfl)
 	case *parser.CallContext:
-		l.astContext.sectionStack.push(cal)
-		n := NewCall(
-			c.GetStart().GetStart(),
-			c.GetStop().GetStop(),
-			"",
-		)
-		n.setParent(l.astContext.workflowNode)
-		l.astContext.workflowNode.Calls = append(
-			l.astContext.workflowNode.Calls, n,
-		)
-		l.astContext.callNode = n
+		l.sectionStack.push(cal)
 	case *parser.TaskContext:
-		l.astContext.sectionStack.push(tsk)
-		n := NewTask(
-			c.GetStart().GetStart(),
-			c.GetStop().GetStop(),
-			c.Identifier().GetText(),
-		)
-		n.setParent(l.wdl)
-		l.wdl.Tasks = append(l.wdl.Tasks, n)
-		l.astContext.taskNode = n
-
-	// No new node is needed
-	// but current listener AST context needs to be updated
+		l.sectionStack.push(tsk)
 	case *parser.Workflow_inputContext:
-		l.astContext.sectionStack.push(ipt)
+		l.sectionStack.push(ipt)
 	case *parser.Workflow_outputContext:
-		l.astContext.sectionStack.push(opt)
+		l.sectionStack.push(opt)
 	case *parser.Task_inputContext:
-		l.astContext.sectionStack.push(ipt)
+		l.sectionStack.push(ipt)
 	case *parser.Task_outputContext:
-		l.astContext.sectionStack.push(opt)
-	case *parser.Task_runtime_kvContext:
-		v := newValueSpec(
-			c.GetStart().GetStart(),
-			c.GetStop().GetStop(),
-			c.Identifier().GetText(),
-			"",
-		)
-		l.astContext.taskNode.Runtime = append(l.astContext.taskNode.Runtime, v)
-		l.astContext.exprRPNStack = v.value
+		l.sectionStack.push(opt)
 	case *parser.MetaContext:
-		l.astContext.sectionStack.push(mtd)
+		l.sectionStack.push(mtd)
 	case *parser.Parameter_metaContext:
-		l.astContext.sectionStack.push(pmt)
-	case *parser.Call_inputContext:
-		v := newValueSpec(
-			c.GetStart().GetStart(),
-			c.GetStop().GetStop(),
-			c.Identifier().GetText(),
-			"",
-		)
-		v.name.isReference = true
-		l.astContext.callNode.Inputs = append(l.astContext.callNode.Inputs, v)
-		l.astContext.exprRPNStack = v.value
+		l.sectionStack.push(pmt)
 	}
 }
 
 func (l *wdlv1_1Listener) ExitEveryRule(ctx antlr.ParserRuleContext) {
 	switch ctx.(type) {
-	case *parser.DocumentContext:
-		l.astContext.sectionStack.pop()
-	case *parser.Import_docContext:
-		l.astContext.sectionStack.pop()
-		l.astContext.importNode = nil
-		l.astContext.exprRPNStack = nil
-	case *parser.WorkflowContext:
-		l.astContext.sectionStack.pop()
-		l.astContext.workflowNode = nil
-	case *parser.CallContext:
-		l.astContext.sectionStack.pop()
-		l.astContext.callNode = nil
-	case *parser.TaskContext:
-		l.astContext.sectionStack.pop()
-		l.astContext.taskNode = nil
-
-	case *parser.Workflow_inputContext:
-		l.astContext.sectionStack.pop()
-	case *parser.Workflow_outputContext:
-		l.astContext.sectionStack.pop()
-	case *parser.Task_inputContext:
-		l.astContext.sectionStack.pop()
-	case *parser.Task_outputContext:
-		l.astContext.sectionStack.pop()
-	case *parser.Task_runtime_kvContext:
-		l.astContext.exprRPNStack = nil
-	case *parser.MetaContext:
-		l.astContext.sectionStack.pop()
-	case *parser.Parameter_metaContext:
-		l.astContext.sectionStack.pop()
-	case *parser.Call_inputContext:
-		l.astContext.exprRPNStack = nil
+	case *parser.DocumentContext,
+		*parser.Import_docContext,
+		*parser.WorkflowContext,
+		*parser.CallContext,
+		*parser.TaskContext,
+		*parser.Workflow_inputContext,
+		*parser.Workflow_outputContext,
+		*parser.Task_inputContext,
+		*parser.Task_outputContext,
+		*parser.MetaContext,
+		*parser.Parameter_metaContext:
+		l.sectionStack.pop()
 	}
 }
 
@@ -202,6 +123,17 @@ func (l *wdlv1_1Listener) ExitVersion(ctx *parser.VersionContext) {
 }
 
 // Parse import
+func (l *wdlv1_1Listener) EnterImport_doc(ctx *parser.Import_docContext) {
+	l.astContext.importNode = newImportSpec(
+		ctx.GetStart().GetStart(),
+		ctx.GetStop().GetStop(),
+		l.wdl,
+		strings.Trim(ctx.Wdl_string().GetText(), `"`),
+	)
+	l.wdl.Imports = append(l.wdl.Imports, l.astContext.importNode)
+	l.astContext.exprRPNStack = l.astContext.importNode.uri
+}
+
 func (l *wdlv1_1Listener) ExitImport_as(ctx *parser.Import_asContext) {
 	l.astContext.importNode.alias = ctx.Identifier().GetText()
 }
@@ -211,7 +143,31 @@ func (l *wdlv1_1Listener) ExitImport_alias(ctx *parser.Import_aliasContext) {
 	l.astContext.importNode.importAliases[k] = v
 }
 
-// Parse workflow elements
+// Parse workflow
+func (l *wdlv1_1Listener) EnterWorkflow(ctx *parser.WorkflowContext) {
+	l.wdl.Workflow = NewWorkflow(
+		ctx.GetStart().GetStart(),
+		ctx.GetStop().GetStop(),
+		l.wdl,
+		ctx.Identifier().GetText(),
+	)
+	l.astContext.workflowNode = l.wdl.Workflow
+}
+
+// Parse call
+func (l *wdlv1_1Listener) EnterCall(ctx *parser.CallContext) {
+	n := NewCall(
+		ctx.GetStart().GetStart(),
+		ctx.GetStop().GetStop(),
+		l.astContext.workflowNode,
+		"",
+	)
+	l.astContext.workflowNode.Calls = append(
+		l.astContext.workflowNode.Calls, n,
+	)
+	l.astContext.callNode = n
+}
+
 func (l *wdlv1_1Listener) ExitCall_name(ctx *parser.Call_nameContext) {
 	l.astContext.callNode.name.initialName = ctx.GetText()
 }
@@ -224,13 +180,48 @@ func (l *wdlv1_1Listener) ExitCall_after(ctx *parser.Call_afterContext) {
 	l.astContext.callNode.After = ctx.Identifier().GetText()
 }
 
+func (l *wdlv1_1Listener) EnterCall_input(ctx *parser.Call_inputContext) {
+	v := newValueSpec(
+		ctx.GetStart().GetStart(),
+		ctx.GetStop().GetStop(),
+		ctx.Identifier().GetText(),
+		"",
+	)
+	v.name.isReference = true
+	l.astContext.callNode.Inputs = append(l.astContext.callNode.Inputs, v)
+	l.astContext.exprRPNStack = v.value
+}
+
 // Parse a task
 // TODO: wrong parsing to be fixed
+func (l *wdlv1_1Listener) EnterTask(ctx *parser.TaskContext) {
+	l.astContext.taskNode = NewTask(
+		ctx.GetStart().GetStart(),
+		ctx.GetStop().GetStop(),
+		l.wdl,
+		ctx.Identifier().GetText(),
+	)
+	l.wdl.Tasks = append(l.wdl.Tasks, l.astContext.taskNode)
+}
+
 func (l *wdlv1_1Listener) EnterTask_command(ctx *parser.Task_commandContext) {
 	l.astContext.taskNode.Command = append(
 		l.astContext.taskNode.Command,
 		ctx.Task_command_string_part().GetText(),
 	)
+}
+
+func (l *wdlv1_1Listener) EnterTask_runtime_kv(
+	ctx *parser.Task_runtime_kvContext,
+) {
+	v := newValueSpec(
+		ctx.GetStart().GetStart(),
+		ctx.GetStop().GetStop(),
+		ctx.Identifier().GetText(),
+		"",
+	)
+	l.astContext.taskNode.Runtime = append(l.astContext.taskNode.Runtime, v)
+	l.astContext.exprRPNStack = v.value
 }
 
 // Parse any declaration
@@ -243,9 +234,9 @@ func (l *wdlv1_1Listener) EnterUnbound_decls(ctx *parser.Unbound_declsContext) {
 	)
 	// Try to figure out which section this valueSpec belongs to
 	switch {
-	case l.astContext.sectionStack.contains(wfl):
+	case l.sectionStack.contains(wfl):
 		l.wdl.Workflow.Inputs = append(l.wdl.Workflow.Inputs, n)
-	case l.astContext.sectionStack.contains(tsk):
+	case l.sectionStack.contains(tsk):
 		taskNode := l.wdl.Tasks[len(l.wdl.Tasks)-1]
 		taskNode.Inputs = append(taskNode.Inputs, n)
 	default:
@@ -262,21 +253,21 @@ func (l *wdlv1_1Listener) EnterBound_decls(ctx *parser.Bound_declsContext) {
 	)
 	// Try to figure out which section this valueSpec belongs to
 	switch {
-	case l.astContext.sectionStack.contains(wfl):
+	case l.sectionStack.contains(wfl):
 		switch {
-		case l.astContext.sectionStack.contains(ipt):
+		case l.sectionStack.contains(ipt):
 			l.wdl.Workflow.Inputs = append(l.wdl.Workflow.Inputs, n)
-		case l.astContext.sectionStack.contains(opt):
+		case l.sectionStack.contains(opt):
 			l.wdl.Workflow.Outputs = append(l.wdl.Workflow.Outputs, n)
 		default:
 			l.wdl.Workflow.PrvtDecls = append(l.wdl.Workflow.PrvtDecls, n)
 		}
-	case l.astContext.sectionStack.contains(tsk):
+	case l.sectionStack.contains(tsk):
 		taskNode := l.wdl.Tasks[len(l.wdl.Tasks)-1]
 		switch {
-		case l.astContext.sectionStack.contains(ipt):
+		case l.sectionStack.contains(ipt):
 			taskNode.Inputs = append(taskNode.Inputs, n)
-		case l.astContext.sectionStack.contains(opt):
+		case l.sectionStack.contains(opt):
 			taskNode.Outputs = append(taskNode.Outputs, n)
 		default:
 			taskNode.PrvtDecls = append(taskNode.PrvtDecls, n)
@@ -301,21 +292,21 @@ func (l *wdlv1_1Listener) ExitMeta_kv(ctx *parser.Meta_kvContext) {
 	)
 	v.value.append(ctx.Meta_value().GetText())
 	switch {
-	case l.astContext.sectionStack.contains(wfl):
+	case l.sectionStack.contains(wfl):
 		switch {
-		case l.astContext.sectionStack.contains(mtd):
+		case l.sectionStack.contains(mtd):
 			l.wdl.Workflow.Meta = append(l.wdl.Workflow.Meta, v)
-		case l.astContext.sectionStack.contains(pmt):
+		case l.sectionStack.contains(pmt):
 			l.wdl.Workflow.ParameterMeta = append(
 				l.wdl.Workflow.ParameterMeta, v,
 			)
 		}
-	case l.astContext.sectionStack.contains(tsk):
+	case l.sectionStack.contains(tsk):
 		taskNode := l.wdl.Tasks[len(l.wdl.Tasks)-1]
 		switch {
-		case l.astContext.sectionStack.contains(mtd):
+		case l.sectionStack.contains(mtd):
 			taskNode.Meta = append(taskNode.Meta, v)
-		case l.astContext.sectionStack.contains(pmt):
+		case l.sectionStack.contains(pmt):
 			taskNode.ParameterMeta = append(taskNode.ParameterMeta, v)
 		}
 	}

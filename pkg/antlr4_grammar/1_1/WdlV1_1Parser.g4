@@ -46,9 +46,9 @@ number
 // Literals
 
 expression_placeholder_option
-  : BoolLiteral EQUAL r_string
-  | DEFAULTEQUAL (r_string | number)
-  | SEPEQUAL r_string
+  : BoolLiteral EQUAL wdl_string
+  | DEFAULTEQUAL (wdl_string | number)
+  | SEPEQUAL wdl_string
   ;
 
 string_part
@@ -63,7 +63,7 @@ string_expr_with_string_part
   : string_expr_part string_part
   ;
 
-r_string
+wdl_string
   : DQUOTE string_part string_expr_with_string_part* DQUOTE
   | SQUOTE string_part string_expr_with_string_part* SQUOTE
   ;
@@ -71,7 +71,7 @@ r_string
 primitive_literal
   : BoolLiteral
   | number
-  | r_string
+  | wdl_string
   | NONELITERAL
   | Identifier
   ;
@@ -155,10 +155,10 @@ import_as
   ;
 
 import_doc
-  : IMPORT r_string import_as? (import_alias)*
+  : IMPORT wdl_string import_as? (import_alias)*
   ;
 
-r_struct
+wdl_struct
   : STRUCT Identifier LBRACE (unbound_decls)* RBRACE
   ;
 
@@ -323,7 +323,7 @@ workflow
 
 document_element
   : import_doc
-  | r_struct
+  | wdl_struct
   | task
   ;
 

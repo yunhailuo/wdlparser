@@ -244,7 +244,7 @@ expression_placeholder_option
 string_part
 string_expr_part
 string_expr_with_string_part
-r_string
+wdl_string
 primitive_literal
 expr
 expr_infix
@@ -260,7 +260,7 @@ version
 import_alias
 import_as
 import_doc
-r_struct
+wdl_struct
 meta_value
 meta_string_part
 meta_string

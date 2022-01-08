@@ -98,8 +98,9 @@ type importSpec struct {
 	importAliases map[string]string // key is original name and value is alias
 }
 
-func newImportSpec(start, end int, uri string) *importSpec {
+func newImportSpec(start, end int, parent node, uri string) *importSpec {
 	is := new(importSpec)
+	is.setParent(parent)
 	v := make(exprRPN, 0)
 	is.uri = &v
 	is.namedNode = *newNamedNode(
@@ -120,8 +121,9 @@ type Workflow struct {
 	ParameterMeta []*valueSpec
 }
 
-func NewWorkflow(start, end int, name string) *Workflow {
+func NewWorkflow(start, end int, parent node, name string) *Workflow {
 	workflow := new(Workflow)
+	workflow.setParent(parent)
 	workflow.namedNode = *newNamedNode(start, end, name)
 	return workflow
 }
@@ -133,8 +135,9 @@ type Call struct {
 	Inputs []*valueSpec
 }
 
-func NewCall(start, end int, name string) *Call {
+func NewCall(start, end int, parent node, name string) *Call {
 	call := new(Call)
+	call.setParent(parent)
 	call.namedNode = *newNamedNode(start, end, name)
 	return call
 }
@@ -151,8 +154,9 @@ type Task struct {
 	ParameterMeta []*valueSpec
 }
 
-func NewTask(start, end int, name string) *Task {
+func NewTask(start, end int, parent node, name string) *Task {
 	task := new(Task)
+	task.setParent(parent)
 	task.namedNode = *newNamedNode(start, end, name)
 	return task
 }

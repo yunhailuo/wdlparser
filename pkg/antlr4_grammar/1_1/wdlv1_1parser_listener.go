@@ -1,4 +1,4 @@
-// Code generated from WdlV1_1Parser.g4 by ANTLR 4.9.1. DO NOT EDIT.
+// Code generated from WdlV1_1Parser.g4 by ANTLR 4.9.3. DO NOT EDIT.
 
 package wdlparser // WdlV1_1Parser
 import "github.com/antlr/antlr4/runtime/Go/antlr"
@@ -46,8 +46,8 @@ type WdlV1_1ParserListener interface {
 	// EnterString_expr_with_string_part is called when entering the string_expr_with_string_part production.
 	EnterString_expr_with_string_part(c *String_expr_with_string_partContext)
 
-	// EnterR_string is called when entering the r_string production.
-	EnterR_string(c *R_stringContext)
+	// EnterWdl_string is called when entering the wdl_string production.
+	EnterWdl_string(c *Wdl_stringContext)
 
 	// EnterPrimitive_literal is called when entering the primitive_literal production.
 	EnterPrimitive_literal(c *Primitive_literalContext)
@@ -172,8 +172,8 @@ type WdlV1_1ParserListener interface {
 	// EnterImport_doc is called when entering the import_doc production.
 	EnterImport_doc(c *Import_docContext)
 
-	// EnterR_struct is called when entering the r_struct production.
-	EnterR_struct(c *R_structContext)
+	// EnterWdl_struct is called when entering the wdl_struct production.
+	EnterWdl_struct(c *Wdl_structContext)
 
 	// EnterMeta_value is called when entering the meta_value production.
 	EnterMeta_value(c *Meta_valueContext)
@@ -331,8 +331,8 @@ type WdlV1_1ParserListener interface {
 	// ExitString_expr_with_string_part is called when exiting the string_expr_with_string_part production.
 	ExitString_expr_with_string_part(c *String_expr_with_string_partContext)
 
-	// ExitR_string is called when exiting the r_string production.
-	ExitR_string(c *R_stringContext)
+	// ExitWdl_string is called when exiting the wdl_string production.
+	ExitWdl_string(c *Wdl_stringContext)
 
 	// ExitPrimitive_literal is called when exiting the primitive_literal production.
 	ExitPrimitive_literal(c *Primitive_literalContext)
@@ -457,8 +457,8 @@ type WdlV1_1ParserListener interface {
 	// ExitImport_doc is called when exiting the import_doc production.
 	ExitImport_doc(c *Import_docContext)
 
-	// ExitR_struct is called when exiting the r_struct production.
-	ExitR_struct(c *R_structContext)
+	// ExitWdl_struct is called when exiting the wdl_struct production.
+	ExitWdl_struct(c *Wdl_structContext)
 
 	// ExitMeta_value is called when exiting the meta_value production.
 	ExitMeta_value(c *Meta_valueContext)

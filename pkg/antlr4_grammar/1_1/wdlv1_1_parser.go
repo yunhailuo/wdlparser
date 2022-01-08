@@ -1,4 +1,4 @@
-// Code generated from WdlV1_1Parser.g4 by ANTLR 4.9.1. DO NOT EDIT.
+// Code generated from WdlV1_1Parser.g4 by ANTLR 4.9.3. DO NOT EDIT.
 
 package wdlparser // WdlV1_1Parser
 import (
@@ -431,10 +431,10 @@ var symbolicNames = []string{
 var ruleNames = []string{
 	"map_type", "array_type", "pair_type", "type_base", "wdl_type", "unbound_decls",
 	"bound_decls", "any_decls", "number", "expression_placeholder_option",
-	"string_part", "string_expr_part", "string_expr_with_string_part", "r_string",
+	"string_part", "string_expr_part", "string_expr_with_string_part", "wdl_string",
 	"primitive_literal", "expr", "expr_infix", "expr_infix0", "expr_infix1",
 	"expr_infix2", "expr_infix3", "expr_infix4", "expr_infix5", "member", "expr_core",
-	"version", "import_alias", "import_as", "import_doc", "r_struct", "meta_value",
+	"version", "import_alias", "import_as", "import_doc", "wdl_struct", "meta_value",
 	"meta_string_part", "meta_string", "meta_array", "meta_object", "meta_object_kv",
 	"meta_kv", "parameter_meta", "meta", "task_runtime_kv", "task_runtime",
 	"task_input", "task_output", "task_command_string_part", "task_command_expr_part",
@@ -607,7 +607,7 @@ const (
 	WdlV1_1ParserRULE_string_part                   = 10
 	WdlV1_1ParserRULE_string_expr_part              = 11
 	WdlV1_1ParserRULE_string_expr_with_string_part  = 12
-	WdlV1_1ParserRULE_r_string                      = 13
+	WdlV1_1ParserRULE_wdl_string                    = 13
 	WdlV1_1ParserRULE_primitive_literal             = 14
 	WdlV1_1ParserRULE_expr                          = 15
 	WdlV1_1ParserRULE_expr_infix                    = 16
@@ -623,7 +623,7 @@ const (
 	WdlV1_1ParserRULE_import_alias                  = 26
 	WdlV1_1ParserRULE_import_as                     = 27
 	WdlV1_1ParserRULE_import_doc                    = 28
-	WdlV1_1ParserRULE_r_struct                      = 29
+	WdlV1_1ParserRULE_wdl_struct                    = 29
 	WdlV1_1ParserRULE_meta_value                    = 30
 	WdlV1_1ParserRULE_meta_string_part              = 31
 	WdlV1_1ParserRULE_meta_string                   = 32
@@ -759,6 +759,9 @@ func (s *Map_typeContext) ExitRule(listener antlr.ParseTreeListener) {
 }
 
 func (p *WdlV1_1Parser) Map_type() (localctx IMap_typeContext) {
+	this := p
+	_ = this
+
 	localctx = NewMap_typeContext(p, p.GetParserRuleContext(), p.GetState())
 	p.EnterRule(localctx, 0, WdlV1_1ParserRULE_map_type)
 
@@ -892,6 +895,9 @@ func (s *Array_typeContext) ExitRule(listener antlr.ParseTreeListener) {
 }
 
 func (p *WdlV1_1Parser) Array_type() (localctx IArray_typeContext) {
+	this := p
+	_ = this
+
 	localctx = NewArray_typeContext(p, p.GetParserRuleContext(), p.GetState())
 	p.EnterRule(localctx, 2, WdlV1_1ParserRULE_array_type)
 	var _la int
@@ -1042,6 +1048,9 @@ func (s *Pair_typeContext) ExitRule(listener antlr.ParseTreeListener) {
 }
 
 func (p *WdlV1_1Parser) Pair_type() (localctx IPair_typeContext) {
+	this := p
+	_ = this
+
 	localctx = NewPair_typeContext(p, p.GetParserRuleContext(), p.GetState())
 	p.EnterRule(localctx, 4, WdlV1_1ParserRULE_pair_type)
 
@@ -1207,6 +1216,9 @@ func (s *Type_baseContext) ExitRule(listener antlr.ParseTreeListener) {
 }
 
 func (p *WdlV1_1Parser) Type_base() (localctx IType_baseContext) {
+	this := p
+	_ = this
+
 	localctx = NewType_baseContext(p, p.GetParserRuleContext(), p.GetState())
 	p.EnterRule(localctx, 6, WdlV1_1ParserRULE_type_base)
 	var _la int
@@ -1346,6 +1358,9 @@ func (s *Wdl_typeContext) ExitRule(listener antlr.ParseTreeListener) {
 }
 
 func (p *WdlV1_1Parser) Wdl_type() (localctx IWdl_typeContext) {
+	this := p
+	_ = this
+
 	localctx = NewWdl_typeContext(p, p.GetParserRuleContext(), p.GetState())
 	p.EnterRule(localctx, 8, WdlV1_1ParserRULE_wdl_type)
 
@@ -1463,6 +1478,9 @@ func (s *Unbound_declsContext) ExitRule(listener antlr.ParseTreeListener) {
 }
 
 func (p *WdlV1_1Parser) Unbound_decls() (localctx IUnbound_declsContext) {
+	this := p
+	_ = this
+
 	localctx = NewUnbound_declsContext(p, p.GetParserRuleContext(), p.GetState())
 	p.EnterRule(localctx, 10, WdlV1_1ParserRULE_unbound_decls)
 
@@ -1582,6 +1600,9 @@ func (s *Bound_declsContext) ExitRule(listener antlr.ParseTreeListener) {
 }
 
 func (p *WdlV1_1Parser) Bound_decls() (localctx IBound_declsContext) {
+	this := p
+	_ = this
+
 	localctx = NewBound_declsContext(p, p.GetParserRuleContext(), p.GetState())
 	p.EnterRule(localctx, 12, WdlV1_1ParserRULE_bound_decls)
 
@@ -1701,6 +1722,9 @@ func (s *Any_declsContext) ExitRule(listener antlr.ParseTreeListener) {
 }
 
 func (p *WdlV1_1Parser) Any_decls() (localctx IAny_declsContext) {
+	this := p
+	_ = this
+
 	localctx = NewAny_declsContext(p, p.GetParserRuleContext(), p.GetState())
 	p.EnterRule(localctx, 14, WdlV1_1ParserRULE_any_decls)
 
@@ -1809,6 +1833,9 @@ func (s *NumberContext) ExitRule(listener antlr.ParseTreeListener) {
 }
 
 func (p *WdlV1_1Parser) Number() (localctx INumberContext) {
+	this := p
+	_ = this
+
 	localctx = NewNumberContext(p, p.GetParserRuleContext(), p.GetState())
 	p.EnterRule(localctx, 16, WdlV1_1ParserRULE_number)
 	var _la int
@@ -1891,14 +1918,14 @@ func (s *Expression_placeholder_optionContext) EQUAL() antlr.TerminalNode {
 	return s.GetToken(WdlV1_1ParserEQUAL, 0)
 }
 
-func (s *Expression_placeholder_optionContext) R_string() IR_stringContext {
-	var t = s.GetTypedRuleContext(reflect.TypeOf((*IR_stringContext)(nil)).Elem(), 0)
+func (s *Expression_placeholder_optionContext) Wdl_string() IWdl_stringContext {
+	var t = s.GetTypedRuleContext(reflect.TypeOf((*IWdl_stringContext)(nil)).Elem(), 0)
 
 	if t == nil {
 		return nil
 	}
 
-	return t.(IR_stringContext)
+	return t.(IWdl_stringContext)
 }
 
 func (s *Expression_placeholder_optionContext) DEFAULTEQUAL() antlr.TerminalNode {
@@ -1940,6 +1967,9 @@ func (s *Expression_placeholder_optionContext) ExitRule(listener antlr.ParseTree
 }
 
 func (p *WdlV1_1Parser) Expression_placeholder_option() (localctx IExpression_placeholder_optionContext) {
+	this := p
+	_ = this
+
 	localctx = NewExpression_placeholder_optionContext(p, p.GetParserRuleContext(), p.GetState())
 	p.EnterRule(localctx, 18, WdlV1_1ParserRULE_expression_placeholder_option)
 
@@ -1975,7 +2005,7 @@ func (p *WdlV1_1Parser) Expression_placeholder_option() (localctx IExpression_pl
 		}
 		{
 			p.SetState(179)
-			p.R_string()
+			p.Wdl_string()
 		}
 
 	case WdlV1_1ParserDEFAULTEQUAL:
@@ -1991,7 +2021,7 @@ func (p *WdlV1_1Parser) Expression_placeholder_option() (localctx IExpression_pl
 		case WdlV1_1ParserSQUOTE, WdlV1_1ParserDQUOTE:
 			{
 				p.SetState(181)
-				p.R_string()
+				p.Wdl_string()
 			}
 
 		case WdlV1_1ParserIntLiteral, WdlV1_1ParserFloatLiteral:
@@ -2012,7 +2042,7 @@ func (p *WdlV1_1Parser) Expression_placeholder_option() (localctx IExpression_pl
 		}
 		{
 			p.SetState(186)
-			p.R_string()
+			p.Wdl_string()
 		}
 
 	default:
@@ -2089,6 +2119,9 @@ func (s *String_partContext) ExitRule(listener antlr.ParseTreeListener) {
 }
 
 func (p *WdlV1_1Parser) String_part() (localctx IString_partContext) {
+	this := p
+	_ = this
+
 	localctx = NewString_partContext(p, p.GetParserRuleContext(), p.GetState())
 	p.EnterRule(localctx, 20, WdlV1_1ParserRULE_string_part)
 	var _la int
@@ -2228,6 +2261,9 @@ func (s *String_expr_partContext) ExitRule(listener antlr.ParseTreeListener) {
 }
 
 func (p *WdlV1_1Parser) String_expr_part() (localctx IString_expr_partContext) {
+	this := p
+	_ = this
+
 	localctx = NewString_expr_partContext(p, p.GetParserRuleContext(), p.GetState())
 	p.EnterRule(localctx, 22, WdlV1_1ParserRULE_string_expr_part)
 
@@ -2361,6 +2397,9 @@ func (s *String_expr_with_string_partContext) ExitRule(listener antlr.ParseTreeL
 }
 
 func (p *WdlV1_1Parser) String_expr_with_string_part() (localctx IString_expr_with_string_partContext) {
+	this := p
+	_ = this
+
 	localctx = NewString_expr_with_string_partContext(p, p.GetParserRuleContext(), p.GetState())
 	p.EnterRule(localctx, 24, WdlV1_1ParserRULE_string_expr_with_string_part)
 
@@ -2393,53 +2432,53 @@ func (p *WdlV1_1Parser) String_expr_with_string_part() (localctx IString_expr_wi
 	return localctx
 }
 
-// IR_stringContext is an interface to support dynamic dispatch.
-type IR_stringContext interface {
+// IWdl_stringContext is an interface to support dynamic dispatch.
+type IWdl_stringContext interface {
 	antlr.ParserRuleContext
 
 	// GetParser returns the parser.
 	GetParser() antlr.Parser
 
-	// IsR_stringContext differentiates from other interfaces.
-	IsR_stringContext()
+	// IsWdl_stringContext differentiates from other interfaces.
+	IsWdl_stringContext()
 }
 
-type R_stringContext struct {
+type Wdl_stringContext struct {
 	*antlr.BaseParserRuleContext
 	parser antlr.Parser
 }
 
-func NewEmptyR_stringContext() *R_stringContext {
-	var p = new(R_stringContext)
+func NewEmptyWdl_stringContext() *Wdl_stringContext {
+	var p = new(Wdl_stringContext)
 	p.BaseParserRuleContext = antlr.NewBaseParserRuleContext(nil, -1)
-	p.RuleIndex = WdlV1_1ParserRULE_r_string
+	p.RuleIndex = WdlV1_1ParserRULE_wdl_string
 	return p
 }
 
-func (*R_stringContext) IsR_stringContext() {}
+func (*Wdl_stringContext) IsWdl_stringContext() {}
 
-func NewR_stringContext(parser antlr.Parser, parent antlr.ParserRuleContext, invokingState int) *R_stringContext {
-	var p = new(R_stringContext)
+func NewWdl_stringContext(parser antlr.Parser, parent antlr.ParserRuleContext, invokingState int) *Wdl_stringContext {
+	var p = new(Wdl_stringContext)
 
 	p.BaseParserRuleContext = antlr.NewBaseParserRuleContext(parent, invokingState)
 
 	p.parser = parser
-	p.RuleIndex = WdlV1_1ParserRULE_r_string
+	p.RuleIndex = WdlV1_1ParserRULE_wdl_string
 
 	return p
 }
 
-func (s *R_stringContext) GetParser() antlr.Parser { return s.parser }
+func (s *Wdl_stringContext) GetParser() antlr.Parser { return s.parser }
 
-func (s *R_stringContext) AllDQUOTE() []antlr.TerminalNode {
+func (s *Wdl_stringContext) AllDQUOTE() []antlr.TerminalNode {
 	return s.GetTokens(WdlV1_1ParserDQUOTE)
 }
 
-func (s *R_stringContext) DQUOTE(i int) antlr.TerminalNode {
+func (s *Wdl_stringContext) DQUOTE(i int) antlr.TerminalNode {
 	return s.GetToken(WdlV1_1ParserDQUOTE, i)
 }
 
-func (s *R_stringContext) String_part() IString_partContext {
+func (s *Wdl_stringContext) String_part() IString_partContext {
 	var t = s.GetTypedRuleContext(reflect.TypeOf((*IString_partContext)(nil)).Elem(), 0)
 
 	if t == nil {
@@ -2449,7 +2488,7 @@ func (s *R_stringContext) String_part() IString_partContext {
 	return t.(IString_partContext)
 }
 
-func (s *R_stringContext) AllString_expr_with_string_part() []IString_expr_with_string_partContext {
+func (s *Wdl_stringContext) AllString_expr_with_string_part() []IString_expr_with_string_partContext {
 	var ts = s.GetTypedRuleContexts(reflect.TypeOf((*IString_expr_with_string_partContext)(nil)).Elem())
 	var tst = make([]IString_expr_with_string_partContext, len(ts))
 
@@ -2462,7 +2501,7 @@ func (s *R_stringContext) AllString_expr_with_string_part() []IString_expr_with_
 	return tst
 }
 
-func (s *R_stringContext) String_expr_with_string_part(i int) IString_expr_with_string_partContext {
+func (s *Wdl_stringContext) String_expr_with_string_part(i int) IString_expr_with_string_partContext {
 	var t = s.GetTypedRuleContext(reflect.TypeOf((*IString_expr_with_string_partContext)(nil)).Elem(), i)
 
 	if t == nil {
@@ -2472,37 +2511,40 @@ func (s *R_stringContext) String_expr_with_string_part(i int) IString_expr_with_
 	return t.(IString_expr_with_string_partContext)
 }
 
-func (s *R_stringContext) AllSQUOTE() []antlr.TerminalNode {
+func (s *Wdl_stringContext) AllSQUOTE() []antlr.TerminalNode {
 	return s.GetTokens(WdlV1_1ParserSQUOTE)
 }
 
-func (s *R_stringContext) SQUOTE(i int) antlr.TerminalNode {
+func (s *Wdl_stringContext) SQUOTE(i int) antlr.TerminalNode {
 	return s.GetToken(WdlV1_1ParserSQUOTE, i)
 }
 
-func (s *R_stringContext) GetRuleContext() antlr.RuleContext {
+func (s *Wdl_stringContext) GetRuleContext() antlr.RuleContext {
 	return s
 }
 
-func (s *R_stringContext) ToStringTree(ruleNames []string, recog antlr.Recognizer) string {
+func (s *Wdl_stringContext) ToStringTree(ruleNames []string, recog antlr.Recognizer) string {
 	return antlr.TreesStringTree(s, ruleNames, recog)
 }
 
-func (s *R_stringContext) EnterRule(listener antlr.ParseTreeListener) {
+func (s *Wdl_stringContext) EnterRule(listener antlr.ParseTreeListener) {
 	if listenerT, ok := listener.(WdlV1_1ParserListener); ok {
-		listenerT.EnterR_string(s)
+		listenerT.EnterWdl_string(s)
 	}
 }
 
-func (s *R_stringContext) ExitRule(listener antlr.ParseTreeListener) {
+func (s *Wdl_stringContext) ExitRule(listener antlr.ParseTreeListener) {
 	if listenerT, ok := listener.(WdlV1_1ParserListener); ok {
-		listenerT.ExitR_string(s)
+		listenerT.ExitWdl_string(s)
 	}
 }
 
-func (p *WdlV1_1Parser) R_string() (localctx IR_stringContext) {
-	localctx = NewR_stringContext(p, p.GetParserRuleContext(), p.GetState())
-	p.EnterRule(localctx, 26, WdlV1_1ParserRULE_r_string)
+func (p *WdlV1_1Parser) Wdl_string() (localctx IWdl_stringContext) {
+	this := p
+	_ = this
+
+	localctx = NewWdl_stringContext(p, p.GetParserRuleContext(), p.GetState())
+	p.EnterRule(localctx, 26, WdlV1_1ParserRULE_wdl_string)
 	var _la int
 
 	defer func() {
@@ -2642,14 +2684,14 @@ func (s *Primitive_literalContext) Number() INumberContext {
 	return t.(INumberContext)
 }
 
-func (s *Primitive_literalContext) R_string() IR_stringContext {
-	var t = s.GetTypedRuleContext(reflect.TypeOf((*IR_stringContext)(nil)).Elem(), 0)
+func (s *Primitive_literalContext) Wdl_string() IWdl_stringContext {
+	var t = s.GetTypedRuleContext(reflect.TypeOf((*IWdl_stringContext)(nil)).Elem(), 0)
 
 	if t == nil {
 		return nil
 	}
 
-	return t.(IR_stringContext)
+	return t.(IWdl_stringContext)
 }
 
 func (s *Primitive_literalContext) NONELITERAL() antlr.TerminalNode {
@@ -2681,6 +2723,9 @@ func (s *Primitive_literalContext) ExitRule(listener antlr.ParseTreeListener) {
 }
 
 func (p *WdlV1_1Parser) Primitive_literal() (localctx IPrimitive_literalContext) {
+	this := p
+	_ = this
+
 	localctx = NewPrimitive_literalContext(p, p.GetParserRuleContext(), p.GetState())
 	p.EnterRule(localctx, 28, WdlV1_1ParserRULE_primitive_literal)
 
@@ -2722,7 +2767,7 @@ func (p *WdlV1_1Parser) Primitive_literal() (localctx IPrimitive_literalContext)
 		p.EnterOuterAlt(localctx, 3)
 		{
 			p.SetState(232)
-			p.R_string()
+			p.Wdl_string()
 		}
 
 	case WdlV1_1ParserNONELITERAL:
@@ -2815,6 +2860,9 @@ func (s *ExprContext) ExitRule(listener antlr.ParseTreeListener) {
 }
 
 func (p *WdlV1_1Parser) Expr() (localctx IExprContext) {
+	this := p
+	_ = this
+
 	localctx = NewExprContext(p, p.GetParserRuleContext(), p.GetState())
 	p.EnterRule(localctx, 30, WdlV1_1ParserRULE_expr)
 
@@ -2934,6 +2982,9 @@ func (s *Infix0Context) ExitRule(listener antlr.ParseTreeListener) {
 }
 
 func (p *WdlV1_1Parser) Expr_infix() (localctx IExpr_infixContext) {
+	this := p
+	_ = this
+
 	localctx = NewExpr_infixContext(p, p.GetParserRuleContext(), p.GetState())
 	p.EnterRule(localctx, 32, WdlV1_1ParserRULE_expr_infix)
 
@@ -3112,6 +3163,9 @@ func (p *WdlV1_1Parser) Expr_infix0() (localctx IExpr_infix0Context) {
 }
 
 func (p *WdlV1_1Parser) expr_infix0(_p int) (localctx IExpr_infix0Context) {
+	this := p
+	_ = this
+
 	var _parentctx antlr.ParserRuleContext = p.GetParserRuleContext()
 	_parentState := p.GetState()
 	localctx = NewExpr_infix0Context(p, p.GetParserRuleContext(), _parentState)
@@ -3333,6 +3387,9 @@ func (p *WdlV1_1Parser) Expr_infix1() (localctx IExpr_infix1Context) {
 }
 
 func (p *WdlV1_1Parser) expr_infix1(_p int) (localctx IExpr_infix1Context) {
+	this := p
+	_ = this
+
 	var _parentctx antlr.ParserRuleContext = p.GetParserRuleContext()
 	_parentState := p.GetState()
 	localctx = NewExpr_infix1Context(p, p.GetParserRuleContext(), _parentState)
@@ -3824,6 +3881,9 @@ func (p *WdlV1_1Parser) Expr_infix2() (localctx IExpr_infix2Context) {
 }
 
 func (p *WdlV1_1Parser) expr_infix2(_p int) (localctx IExpr_infix2Context) {
+	this := p
+	_ = this
+
 	var _parentctx antlr.ParserRuleContext = p.GetParserRuleContext()
 	_parentState := p.GetState()
 	localctx = NewExpr_infix2Context(p, p.GetParserRuleContext(), _parentState)
@@ -4190,6 +4250,9 @@ func (p *WdlV1_1Parser) Expr_infix3() (localctx IExpr_infix3Context) {
 }
 
 func (p *WdlV1_1Parser) expr_infix3(_p int) (localctx IExpr_infix3Context) {
+	this := p
+	_ = this
+
 	var _parentctx antlr.ParserRuleContext = p.GetParserRuleContext()
 	_parentState := p.GetState()
 	localctx = NewExpr_infix3Context(p, p.GetParserRuleContext(), _parentState)
@@ -4542,6 +4605,9 @@ func (p *WdlV1_1Parser) Expr_infix4() (localctx IExpr_infix4Context) {
 }
 
 func (p *WdlV1_1Parser) expr_infix4(_p int) (localctx IExpr_infix4Context) {
+	this := p
+	_ = this
+
 	var _parentctx antlr.ParserRuleContext = p.GetParserRuleContext()
 	_parentState := p.GetState()
 	localctx = NewExpr_infix4Context(p, p.GetParserRuleContext(), _parentState)
@@ -4723,6 +4789,9 @@ func (s *Expr_infix5Context) ExitRule(listener antlr.ParseTreeListener) {
 }
 
 func (p *WdlV1_1Parser) Expr_infix5() (localctx IExpr_infix5Context) {
+	this := p
+	_ = this
+
 	localctx = NewExpr_infix5Context(p, p.GetParserRuleContext(), p.GetState())
 	p.EnterRule(localctx, 44, WdlV1_1ParserRULE_expr_infix5)
 
@@ -4814,6 +4883,9 @@ func (s *MemberContext) ExitRule(listener antlr.ParseTreeListener) {
 }
 
 func (p *WdlV1_1Parser) Member() (localctx IMemberContext) {
+	this := p
+	_ = this
+
 	localctx = NewMemberContext(p, p.GetParserRuleContext(), p.GetState())
 	p.EnterRule(localctx, 46, WdlV1_1ParserRULE_member)
 
@@ -5774,6 +5846,9 @@ func (p *WdlV1_1Parser) Expr_core() (localctx IExpr_coreContext) {
 }
 
 func (p *WdlV1_1Parser) expr_core(_p int) (localctx IExpr_coreContext) {
+	this := p
+	_ = this
+
 	var _parentctx antlr.ParserRuleContext = p.GetParserRuleContext()
 	_parentState := p.GetState()
 	localctx = NewExpr_coreContext(p, p.GetParserRuleContext(), _parentState)
@@ -6406,6 +6481,9 @@ func (s *VersionContext) ExitRule(listener antlr.ParseTreeListener) {
 }
 
 func (p *WdlV1_1Parser) Version() (localctx IVersionContext) {
+	this := p
+	_ = this
+
 	localctx = NewVersionContext(p, p.GetParserRuleContext(), p.GetState())
 	p.EnterRule(localctx, 50, WdlV1_1ParserRULE_version)
 
@@ -6513,6 +6591,9 @@ func (s *Import_aliasContext) ExitRule(listener antlr.ParseTreeListener) {
 }
 
 func (p *WdlV1_1Parser) Import_alias() (localctx IImport_aliasContext) {
+	this := p
+	_ = this
+
 	localctx = NewImport_aliasContext(p, p.GetParserRuleContext(), p.GetState())
 	p.EnterRule(localctx, 52, WdlV1_1ParserRULE_import_alias)
 
@@ -6620,6 +6701,9 @@ func (s *Import_asContext) ExitRule(listener antlr.ParseTreeListener) {
 }
 
 func (p *WdlV1_1Parser) Import_as() (localctx IImport_asContext) {
+	this := p
+	_ = this
+
 	localctx = NewImport_asContext(p, p.GetParserRuleContext(), p.GetState())
 	p.EnterRule(localctx, 54, WdlV1_1ParserRULE_import_as)
 
@@ -6694,14 +6778,14 @@ func (s *Import_docContext) IMPORT() antlr.TerminalNode {
 	return s.GetToken(WdlV1_1ParserIMPORT, 0)
 }
 
-func (s *Import_docContext) R_string() IR_stringContext {
-	var t = s.GetTypedRuleContext(reflect.TypeOf((*IR_stringContext)(nil)).Elem(), 0)
+func (s *Import_docContext) Wdl_string() IWdl_stringContext {
+	var t = s.GetTypedRuleContext(reflect.TypeOf((*IWdl_stringContext)(nil)).Elem(), 0)
 
 	if t == nil {
 		return nil
 	}
 
-	return t.(IR_stringContext)
+	return t.(IWdl_stringContext)
 }
 
 func (s *Import_docContext) Import_as() IImport_asContext {
@@ -6758,6 +6842,9 @@ func (s *Import_docContext) ExitRule(listener antlr.ParseTreeListener) {
 }
 
 func (p *WdlV1_1Parser) Import_doc() (localctx IImport_docContext) {
+	this := p
+	_ = this
+
 	localctx = NewImport_docContext(p, p.GetParserRuleContext(), p.GetState())
 	p.EnterRule(localctx, 56, WdlV1_1ParserRULE_import_doc)
 	var _la int
@@ -6785,7 +6872,7 @@ func (p *WdlV1_1Parser) Import_doc() (localctx IImport_docContext) {
 	}
 	{
 		p.SetState(480)
-		p.R_string()
+		p.Wdl_string()
 	}
 	p.SetState(482)
 	p.GetErrorHandler().Sync(p)
@@ -6816,61 +6903,61 @@ func (p *WdlV1_1Parser) Import_doc() (localctx IImport_docContext) {
 	return localctx
 }
 
-// IR_structContext is an interface to support dynamic dispatch.
-type IR_structContext interface {
+// IWdl_structContext is an interface to support dynamic dispatch.
+type IWdl_structContext interface {
 	antlr.ParserRuleContext
 
 	// GetParser returns the parser.
 	GetParser() antlr.Parser
 
-	// IsR_structContext differentiates from other interfaces.
-	IsR_structContext()
+	// IsWdl_structContext differentiates from other interfaces.
+	IsWdl_structContext()
 }
 
-type R_structContext struct {
+type Wdl_structContext struct {
 	*antlr.BaseParserRuleContext
 	parser antlr.Parser
 }
 
-func NewEmptyR_structContext() *R_structContext {
-	var p = new(R_structContext)
+func NewEmptyWdl_structContext() *Wdl_structContext {
+	var p = new(Wdl_structContext)
 	p.BaseParserRuleContext = antlr.NewBaseParserRuleContext(nil, -1)
-	p.RuleIndex = WdlV1_1ParserRULE_r_struct
+	p.RuleIndex = WdlV1_1ParserRULE_wdl_struct
 	return p
 }
 
-func (*R_structContext) IsR_structContext() {}
+func (*Wdl_structContext) IsWdl_structContext() {}
 
-func NewR_structContext(parser antlr.Parser, parent antlr.ParserRuleContext, invokingState int) *R_structContext {
-	var p = new(R_structContext)
+func NewWdl_structContext(parser antlr.Parser, parent antlr.ParserRuleContext, invokingState int) *Wdl_structContext {
+	var p = new(Wdl_structContext)
 
 	p.BaseParserRuleContext = antlr.NewBaseParserRuleContext(parent, invokingState)
 
 	p.parser = parser
-	p.RuleIndex = WdlV1_1ParserRULE_r_struct
+	p.RuleIndex = WdlV1_1ParserRULE_wdl_struct
 
 	return p
 }
 
-func (s *R_structContext) GetParser() antlr.Parser { return s.parser }
+func (s *Wdl_structContext) GetParser() antlr.Parser { return s.parser }
 
-func (s *R_structContext) STRUCT() antlr.TerminalNode {
+func (s *Wdl_structContext) STRUCT() antlr.TerminalNode {
 	return s.GetToken(WdlV1_1ParserSTRUCT, 0)
 }
 
-func (s *R_structContext) Identifier() antlr.TerminalNode {
+func (s *Wdl_structContext) Identifier() antlr.TerminalNode {
 	return s.GetToken(WdlV1_1ParserIdentifier, 0)
 }
 
-func (s *R_structContext) LBRACE() antlr.TerminalNode {
+func (s *Wdl_structContext) LBRACE() antlr.TerminalNode {
 	return s.GetToken(WdlV1_1ParserLBRACE, 0)
 }
 
-func (s *R_structContext) RBRACE() antlr.TerminalNode {
+func (s *Wdl_structContext) RBRACE() antlr.TerminalNode {
 	return s.GetToken(WdlV1_1ParserRBRACE, 0)
 }
 
-func (s *R_structContext) AllUnbound_decls() []IUnbound_declsContext {
+func (s *Wdl_structContext) AllUnbound_decls() []IUnbound_declsContext {
 	var ts = s.GetTypedRuleContexts(reflect.TypeOf((*IUnbound_declsContext)(nil)).Elem())
 	var tst = make([]IUnbound_declsContext, len(ts))
 
@@ -6883,7 +6970,7 @@ func (s *R_structContext) AllUnbound_decls() []IUnbound_declsContext {
 	return tst
 }
 
-func (s *R_structContext) Unbound_decls(i int) IUnbound_declsContext {
+func (s *Wdl_structContext) Unbound_decls(i int) IUnbound_declsContext {
 	var t = s.GetTypedRuleContext(reflect.TypeOf((*IUnbound_declsContext)(nil)).Elem(), i)
 
 	if t == nil {
@@ -6893,29 +6980,32 @@ func (s *R_structContext) Unbound_decls(i int) IUnbound_declsContext {
 	return t.(IUnbound_declsContext)
 }
 
-func (s *R_structContext) GetRuleContext() antlr.RuleContext {
+func (s *Wdl_structContext) GetRuleContext() antlr.RuleContext {
 	return s
 }
 
-func (s *R_structContext) ToStringTree(ruleNames []string, recog antlr.Recognizer) string {
+func (s *Wdl_structContext) ToStringTree(ruleNames []string, recog antlr.Recognizer) string {
 	return antlr.TreesStringTree(s, ruleNames, recog)
 }
 
-func (s *R_structContext) EnterRule(listener antlr.ParseTreeListener) {
+func (s *Wdl_structContext) EnterRule(listener antlr.ParseTreeListener) {
 	if listenerT, ok := listener.(WdlV1_1ParserListener); ok {
-		listenerT.EnterR_struct(s)
+		listenerT.EnterWdl_struct(s)
 	}
 }
 
-func (s *R_structContext) ExitRule(listener antlr.ParseTreeListener) {
+func (s *Wdl_structContext) ExitRule(listener antlr.ParseTreeListener) {
 	if listenerT, ok := listener.(WdlV1_1ParserListener); ok {
-		listenerT.ExitR_struct(s)
+		listenerT.ExitWdl_struct(s)
 	}
 }
 
-func (p *WdlV1_1Parser) R_struct() (localctx IR_structContext) {
-	localctx = NewR_structContext(p, p.GetParserRuleContext(), p.GetState())
-	p.EnterRule(localctx, 58, WdlV1_1ParserRULE_r_struct)
+func (p *WdlV1_1Parser) Wdl_struct() (localctx IWdl_structContext) {
+	this := p
+	_ = this
+
+	localctx = NewWdl_structContext(p, p.GetParserRuleContext(), p.GetState())
+	p.EnterRule(localctx, 58, WdlV1_1ParserRULE_wdl_struct)
 	var _la int
 
 	defer func() {
@@ -7074,6 +7164,9 @@ func (s *Meta_valueContext) ExitRule(listener antlr.ParseTreeListener) {
 }
 
 func (p *WdlV1_1Parser) Meta_value() (localctx IMeta_valueContext) {
+	this := p
+	_ = this
+
 	localctx = NewMeta_valueContext(p, p.GetParserRuleContext(), p.GetState())
 	p.EnterRule(localctx, 60, WdlV1_1ParserRULE_meta_value)
 
@@ -7220,6 +7313,9 @@ func (s *Meta_string_partContext) ExitRule(listener antlr.ParseTreeListener) {
 }
 
 func (p *WdlV1_1Parser) Meta_string_part() (localctx IMeta_string_partContext) {
+	this := p
+	_ = this
+
 	localctx = NewMeta_string_partContext(p, p.GetParserRuleContext(), p.GetState())
 	p.EnterRule(localctx, 62, WdlV1_1ParserRULE_meta_string_part)
 	var _la int
@@ -7344,6 +7440,9 @@ func (s *Meta_stringContext) ExitRule(listener antlr.ParseTreeListener) {
 }
 
 func (p *WdlV1_1Parser) Meta_string() (localctx IMeta_stringContext) {
+	this := p
+	_ = this
+
 	localctx = NewMeta_stringContext(p, p.GetParserRuleContext(), p.GetState())
 	p.EnterRule(localctx, 64, WdlV1_1ParserRULE_meta_string)
 
@@ -7510,6 +7609,9 @@ func (s *Meta_arrayContext) ExitRule(listener antlr.ParseTreeListener) {
 }
 
 func (p *WdlV1_1Parser) Meta_array() (localctx IMeta_arrayContext) {
+	this := p
+	_ = this
+
 	localctx = NewMeta_arrayContext(p, p.GetParserRuleContext(), p.GetState())
 	p.EnterRule(localctx, 66, WdlV1_1ParserRULE_meta_array)
 	var _la int
@@ -7694,6 +7796,9 @@ func (s *Meta_objectContext) ExitRule(listener antlr.ParseTreeListener) {
 }
 
 func (p *WdlV1_1Parser) Meta_object() (localctx IMeta_objectContext) {
+	this := p
+	_ = this
+
 	localctx = NewMeta_objectContext(p, p.GetParserRuleContext(), p.GetState())
 	p.EnterRule(localctx, 68, WdlV1_1ParserRULE_meta_object)
 	var _la int
@@ -7849,6 +7954,9 @@ func (s *Meta_object_kvContext) ExitRule(listener antlr.ParseTreeListener) {
 }
 
 func (p *WdlV1_1Parser) Meta_object_kv() (localctx IMeta_object_kvContext) {
+	this := p
+	_ = this
+
 	localctx = NewMeta_object_kvContext(p, p.GetParserRuleContext(), p.GetState())
 	p.EnterRule(localctx, 70, WdlV1_1ParserRULE_meta_object_kv)
 
@@ -7962,6 +8070,9 @@ func (s *Meta_kvContext) ExitRule(listener antlr.ParseTreeListener) {
 }
 
 func (p *WdlV1_1Parser) Meta_kv() (localctx IMeta_kvContext) {
+	this := p
+	_ = this
+
 	localctx = NewMeta_kvContext(p, p.GetParserRuleContext(), p.GetState())
 	p.EnterRule(localctx, 72, WdlV1_1ParserRULE_meta_kv)
 
@@ -8092,6 +8203,9 @@ func (s *Parameter_metaContext) ExitRule(listener antlr.ParseTreeListener) {
 }
 
 func (p *WdlV1_1Parser) Parameter_meta() (localctx IParameter_metaContext) {
+	this := p
+	_ = this
+
 	localctx = NewParameter_metaContext(p, p.GetParserRuleContext(), p.GetState())
 	p.EnterRule(localctx, 74, WdlV1_1ParserRULE_parameter_meta)
 	var _la int
@@ -8237,6 +8351,9 @@ func (s *MetaContext) ExitRule(listener antlr.ParseTreeListener) {
 }
 
 func (p *WdlV1_1Parser) Meta() (localctx IMetaContext) {
+	this := p
+	_ = this
+
 	localctx = NewMetaContext(p, p.GetParserRuleContext(), p.GetState())
 	p.EnterRule(localctx, 76, WdlV1_1ParserRULE_meta)
 	var _la int
@@ -8365,6 +8482,9 @@ func (s *Task_runtime_kvContext) ExitRule(listener antlr.ParseTreeListener) {
 }
 
 func (p *WdlV1_1Parser) Task_runtime_kv() (localctx ITask_runtime_kvContext) {
+	this := p
+	_ = this
+
 	localctx = NewTask_runtime_kvContext(p, p.GetParserRuleContext(), p.GetState())
 	p.EnterRule(localctx, 78, WdlV1_1ParserRULE_task_runtime_kv)
 
@@ -8495,6 +8615,9 @@ func (s *Task_runtimeContext) ExitRule(listener antlr.ParseTreeListener) {
 }
 
 func (p *WdlV1_1Parser) Task_runtime() (localctx ITask_runtimeContext) {
+	this := p
+	_ = this
+
 	localctx = NewTask_runtimeContext(p, p.GetParserRuleContext(), p.GetState())
 	p.EnterRule(localctx, 80, WdlV1_1ParserRULE_task_runtime)
 	var _la int
@@ -8640,6 +8763,9 @@ func (s *Task_inputContext) ExitRule(listener antlr.ParseTreeListener) {
 }
 
 func (p *WdlV1_1Parser) Task_input() (localctx ITask_inputContext) {
+	this := p
+	_ = this
+
 	localctx = NewTask_inputContext(p, p.GetParserRuleContext(), p.GetState())
 	p.EnterRule(localctx, 82, WdlV1_1ParserRULE_task_input)
 	var _la int
@@ -8785,6 +8911,9 @@ func (s *Task_outputContext) ExitRule(listener antlr.ParseTreeListener) {
 }
 
 func (p *WdlV1_1Parser) Task_output() (localctx ITask_outputContext) {
+	this := p
+	_ = this
+
 	localctx = NewTask_outputContext(p, p.GetParserRuleContext(), p.GetState())
 	p.EnterRule(localctx, 84, WdlV1_1ParserRULE_task_output)
 	var _la int
@@ -8903,6 +9032,9 @@ func (s *Task_command_string_partContext) ExitRule(listener antlr.ParseTreeListe
 }
 
 func (p *WdlV1_1Parser) Task_command_string_part() (localctx ITask_command_string_partContext) {
+	this := p
+	_ = this
+
 	localctx = NewTask_command_string_partContext(p, p.GetParserRuleContext(), p.GetState())
 	p.EnterRule(localctx, 86, WdlV1_1ParserRULE_task_command_string_part)
 	var _la int
@@ -9042,6 +9174,9 @@ func (s *Task_command_expr_partContext) ExitRule(listener antlr.ParseTreeListene
 }
 
 func (p *WdlV1_1Parser) Task_command_expr_part() (localctx ITask_command_expr_partContext) {
+	this := p
+	_ = this
+
 	localctx = NewTask_command_expr_partContext(p, p.GetParserRuleContext(), p.GetState())
 	p.EnterRule(localctx, 88, WdlV1_1ParserRULE_task_command_expr_part)
 
@@ -9175,6 +9310,9 @@ func (s *Task_command_expr_with_stringContext) ExitRule(listener antlr.ParseTree
 }
 
 func (p *WdlV1_1Parser) Task_command_expr_with_string() (localctx ITask_command_expr_with_stringContext) {
+	this := p
+	_ = this
+
 	localctx = NewTask_command_expr_with_stringContext(p, p.GetParserRuleContext(), p.GetState())
 	p.EnterRule(localctx, 90, WdlV1_1ParserRULE_task_command_expr_with_string)
 
@@ -9315,6 +9453,9 @@ func (s *Task_commandContext) ExitRule(listener antlr.ParseTreeListener) {
 }
 
 func (p *WdlV1_1Parser) Task_command() (localctx ITask_commandContext) {
+	this := p
+	_ = this
+
 	localctx = NewTask_commandContext(p, p.GetParserRuleContext(), p.GetState())
 	p.EnterRule(localctx, 92, WdlV1_1ParserRULE_task_command)
 	var _la int
@@ -9538,6 +9679,9 @@ func (s *Task_elementContext) ExitRule(listener antlr.ParseTreeListener) {
 }
 
 func (p *WdlV1_1Parser) Task_element() (localctx ITask_elementContext) {
+	this := p
+	_ = this
+
 	localctx = NewTask_elementContext(p, p.GetParserRuleContext(), p.GetState())
 	p.EnterRule(localctx, 94, WdlV1_1ParserRULE_task_element)
 
@@ -9715,6 +9859,9 @@ func (s *TaskContext) ExitRule(listener antlr.ParseTreeListener) {
 }
 
 func (p *WdlV1_1Parser) Task() (localctx ITaskContext) {
+	this := p
+	_ = this
+
 	localctx = NewTaskContext(p, p.GetParserRuleContext(), p.GetState())
 	p.EnterRule(localctx, 96, WdlV1_1ParserRULE_task)
 	var _la int
@@ -9869,6 +10016,9 @@ func (s *Inner_workflow_elementContext) ExitRule(listener antlr.ParseTreeListene
 }
 
 func (p *WdlV1_1Parser) Inner_workflow_element() (localctx IInner_workflow_elementContext) {
+	this := p
+	_ = this
+
 	localctx = NewInner_workflow_elementContext(p, p.GetParserRuleContext(), p.GetState())
 	p.EnterRule(localctx, 98, WdlV1_1ParserRULE_inner_workflow_element)
 
@@ -9994,6 +10144,9 @@ func (s *Call_aliasContext) ExitRule(listener antlr.ParseTreeListener) {
 }
 
 func (p *WdlV1_1Parser) Call_alias() (localctx ICall_aliasContext) {
+	this := p
+	_ = this
+
 	localctx = NewCall_aliasContext(p, p.GetParserRuleContext(), p.GetState())
 	p.EnterRule(localctx, 100, WdlV1_1ParserRULE_call_alias)
 
@@ -10103,6 +10256,9 @@ func (s *Call_inputContext) ExitRule(listener antlr.ParseTreeListener) {
 }
 
 func (p *WdlV1_1Parser) Call_input() (localctx ICall_inputContext) {
+	this := p
+	_ = this
+
 	localctx = NewCall_inputContext(p, p.GetParserRuleContext(), p.GetState())
 	p.EnterRule(localctx, 102, WdlV1_1ParserRULE_call_input)
 	var _la int
@@ -10245,6 +10401,9 @@ func (s *Call_inputsContext) ExitRule(listener antlr.ParseTreeListener) {
 }
 
 func (p *WdlV1_1Parser) Call_inputs() (localctx ICall_inputsContext) {
+	this := p
+	_ = this
+
 	localctx = NewCall_inputsContext(p, p.GetParserRuleContext(), p.GetState())
 	p.EnterRule(localctx, 104, WdlV1_1ParserRULE_call_inputs)
 	var _la int
@@ -10402,6 +10561,9 @@ func (s *Call_bodyContext) ExitRule(listener antlr.ParseTreeListener) {
 }
 
 func (p *WdlV1_1Parser) Call_body() (localctx ICall_bodyContext) {
+	this := p
+	_ = this
+
 	localctx = NewCall_bodyContext(p, p.GetParserRuleContext(), p.GetState())
 	p.EnterRule(localctx, 106, WdlV1_1ParserRULE_call_body)
 	var _la int
@@ -10513,6 +10675,9 @@ func (s *Call_afterContext) ExitRule(listener antlr.ParseTreeListener) {
 }
 
 func (p *WdlV1_1Parser) Call_after() (localctx ICall_afterContext) {
+	this := p
+	_ = this
+
 	localctx = NewCall_afterContext(p, p.GetParserRuleContext(), p.GetState())
 	p.EnterRule(localctx, 108, WdlV1_1ParserRULE_call_after)
 
@@ -10620,6 +10785,9 @@ func (s *Call_nameContext) ExitRule(listener antlr.ParseTreeListener) {
 }
 
 func (p *WdlV1_1Parser) Call_name() (localctx ICall_nameContext) {
+	this := p
+	_ = this
+
 	localctx = NewCall_nameContext(p, p.GetParserRuleContext(), p.GetState())
 	p.EnterRule(localctx, 110, WdlV1_1ParserRULE_call_name)
 	var _la int
@@ -10783,6 +10951,9 @@ func (s *CallContext) ExitRule(listener antlr.ParseTreeListener) {
 }
 
 func (p *WdlV1_1Parser) Call() (localctx ICallContext) {
+	this := p
+	_ = this
+
 	localctx = NewCallContext(p, p.GetParserRuleContext(), p.GetState())
 	p.EnterRule(localctx, 112, WdlV1_1ParserRULE_call)
 	var _la int
@@ -10972,6 +11143,9 @@ func (s *ScatterContext) ExitRule(listener antlr.ParseTreeListener) {
 }
 
 func (p *WdlV1_1Parser) Scatter() (localctx IScatterContext) {
+	this := p
+	_ = this
+
 	localctx = NewScatterContext(p, p.GetParserRuleContext(), p.GetState())
 	p.EnterRule(localctx, 114, WdlV1_1ParserRULE_scatter)
 	var _la int
@@ -11155,6 +11329,9 @@ func (s *ConditionalContext) ExitRule(listener antlr.ParseTreeListener) {
 }
 
 func (p *WdlV1_1Parser) Conditional() (localctx IConditionalContext) {
+	this := p
+	_ = this
+
 	localctx = NewConditionalContext(p, p.GetParserRuleContext(), p.GetState())
 	p.EnterRule(localctx, 116, WdlV1_1ParserRULE_conditional)
 	var _la int
@@ -11312,6 +11489,9 @@ func (s *Workflow_inputContext) ExitRule(listener antlr.ParseTreeListener) {
 }
 
 func (p *WdlV1_1Parser) Workflow_input() (localctx IWorkflow_inputContext) {
+	this := p
+	_ = this
+
 	localctx = NewWorkflow_inputContext(p, p.GetParserRuleContext(), p.GetState())
 	p.EnterRule(localctx, 118, WdlV1_1ParserRULE_workflow_input)
 	var _la int
@@ -11457,6 +11637,9 @@ func (s *Workflow_outputContext) ExitRule(listener antlr.ParseTreeListener) {
 }
 
 func (p *WdlV1_1Parser) Workflow_output() (localctx IWorkflow_outputContext) {
+	this := p
+	_ = this
+
 	localctx = NewWorkflow_outputContext(p, p.GetParserRuleContext(), p.GetState())
 	p.EnterRule(localctx, 120, WdlV1_1ParserRULE_workflow_output)
 	var _la int
@@ -11759,6 +11942,9 @@ func (s *Inner_elementContext) ExitRule(listener antlr.ParseTreeListener) {
 }
 
 func (p *WdlV1_1Parser) Workflow_element() (localctx IWorkflow_elementContext) {
+	this := p
+	_ = this
+
 	localctx = NewWorkflow_elementContext(p, p.GetParserRuleContext(), p.GetState())
 	p.EnterRule(localctx, 122, WdlV1_1ParserRULE_workflow_element)
 
@@ -11927,6 +12113,9 @@ func (s *WorkflowContext) ExitRule(listener antlr.ParseTreeListener) {
 }
 
 func (p *WdlV1_1Parser) Workflow() (localctx IWorkflowContext) {
+	this := p
+	_ = this
+
 	localctx = NewWorkflowContext(p, p.GetParserRuleContext(), p.GetState())
 	p.EnterRule(localctx, 124, WdlV1_1ParserRULE_workflow)
 	var _la int
@@ -12030,14 +12219,14 @@ func (s *Document_elementContext) Import_doc() IImport_docContext {
 	return t.(IImport_docContext)
 }
 
-func (s *Document_elementContext) R_struct() IR_structContext {
-	var t = s.GetTypedRuleContext(reflect.TypeOf((*IR_structContext)(nil)).Elem(), 0)
+func (s *Document_elementContext) Wdl_struct() IWdl_structContext {
+	var t = s.GetTypedRuleContext(reflect.TypeOf((*IWdl_structContext)(nil)).Elem(), 0)
 
 	if t == nil {
 		return nil
 	}
 
-	return t.(IR_structContext)
+	return t.(IWdl_structContext)
 }
 
 func (s *Document_elementContext) Task() ITaskContext {
@@ -12071,6 +12260,9 @@ func (s *Document_elementContext) ExitRule(listener antlr.ParseTreeListener) {
 }
 
 func (p *WdlV1_1Parser) Document_element() (localctx IDocument_elementContext) {
+	this := p
+	_ = this
+
 	localctx = NewDocument_elementContext(p, p.GetParserRuleContext(), p.GetState())
 	p.EnterRule(localctx, 126, WdlV1_1ParserRULE_document_element)
 
@@ -12105,7 +12297,7 @@ func (p *WdlV1_1Parser) Document_element() (localctx IDocument_elementContext) {
 		p.EnterOuterAlt(localctx, 2)
 		{
 			p.SetState(808)
-			p.R_struct()
+			p.Wdl_struct()
 		}
 
 	case WdlV1_1ParserTASK:
@@ -12228,6 +12420,9 @@ func (s *DocumentContext) ExitRule(listener antlr.ParseTreeListener) {
 }
 
 func (p *WdlV1_1Parser) Document() (localctx IDocumentContext) {
+	this := p
+	_ = this
+
 	localctx = NewDocumentContext(p, p.GetParserRuleContext(), p.GetState())
 	p.EnterRule(localctx, 128, WdlV1_1ParserRULE_document)
 	var _la int
@@ -12350,6 +12545,9 @@ func (p *WdlV1_1Parser) Sempred(localctx antlr.RuleContext, ruleIndex, predIndex
 }
 
 func (p *WdlV1_1Parser) Expr_infix0_Sempred(localctx antlr.RuleContext, predIndex int) bool {
+	this := p
+	_ = this
+
 	switch predIndex {
 	case 0:
 		return p.Precpred(p.GetParserRuleContext(), 2)
@@ -12360,6 +12558,9 @@ func (p *WdlV1_1Parser) Expr_infix0_Sempred(localctx antlr.RuleContext, predInde
 }
 
 func (p *WdlV1_1Parser) Expr_infix1_Sempred(localctx antlr.RuleContext, predIndex int) bool {
+	this := p
+	_ = this
+
 	switch predIndex {
 	case 1:
 		return p.Precpred(p.GetParserRuleContext(), 2)
@@ -12370,6 +12571,9 @@ func (p *WdlV1_1Parser) Expr_infix1_Sempred(localctx antlr.RuleContext, predInde
 }
 
 func (p *WdlV1_1Parser) Expr_infix2_Sempred(localctx antlr.RuleContext, predIndex int) bool {
+	this := p
+	_ = this
+
 	switch predIndex {
 	case 2:
 		return p.Precpred(p.GetParserRuleContext(), 7)
@@ -12395,6 +12599,9 @@ func (p *WdlV1_1Parser) Expr_infix2_Sempred(localctx antlr.RuleContext, predInde
 }
 
 func (p *WdlV1_1Parser) Expr_infix3_Sempred(localctx antlr.RuleContext, predIndex int) bool {
+	this := p
+	_ = this
+
 	switch predIndex {
 	case 8:
 		return p.Precpred(p.GetParserRuleContext(), 3)
@@ -12408,6 +12615,9 @@ func (p *WdlV1_1Parser) Expr_infix3_Sempred(localctx antlr.RuleContext, predInde
 }
 
 func (p *WdlV1_1Parser) Expr_infix4_Sempred(localctx antlr.RuleContext, predIndex int) bool {
+	this := p
+	_ = this
+
 	switch predIndex {
 	case 10:
 		return p.Precpred(p.GetParserRuleContext(), 4)
@@ -12424,6 +12634,9 @@ func (p *WdlV1_1Parser) Expr_infix4_Sempred(localctx antlr.RuleContext, predInde
 }
 
 func (p *WdlV1_1Parser) Expr_core_Sempred(localctx antlr.RuleContext, predIndex int) bool {
+	this := p
+	_ = this
+
 	switch predIndex {
 	case 13:
 		return p.Precpred(p.GetParserRuleContext(), 6)

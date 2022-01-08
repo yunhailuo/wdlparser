@@ -6,9 +6,10 @@ import (
 	"math"
 	"strconv"
 
-	parser "github.com/yunhailuo/wdlparser/pkg/wdlv1_1"
+	parser "github.com/yunhailuo/wdlparser/pkg/antlr4_grammar/1_1"
 )
 
+// Reverse Polish notation of expression
 type exprRPN []interface{}
 
 func (e *exprRPN) append(elem interface{}) {
@@ -441,7 +442,7 @@ func (l *wdlv1_1Listener) ExitString_expr_with_string_part(
 ) {
 	// join expr and string within string_expr_with_string_part
 	l.astContext.exprRPNStack.append(wdlAdd)
-	// join others in r_string
+	// join others in wdl_string
 	l.astContext.exprRPNStack.append(wdlAdd)
 }
 

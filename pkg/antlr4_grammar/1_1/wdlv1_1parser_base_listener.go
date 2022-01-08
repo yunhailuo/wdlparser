@@ -1,4 +1,4 @@
-// Code generated from WdlV1_1Parser.g4 by ANTLR 4.9.1. DO NOT EDIT.
+// Code generated from WdlV1_1Parser.g4 by ANTLR 4.9.3. DO NOT EDIT.
 
 package wdlparser // WdlV1_1Parser
 import "github.com/antlr/antlr4/runtime/Go/antlr"
@@ -102,11 +102,11 @@ func (s *BaseWdlV1_1ParserListener) EnterString_expr_with_string_part(ctx *Strin
 func (s *BaseWdlV1_1ParserListener) ExitString_expr_with_string_part(ctx *String_expr_with_string_partContext) {
 }
 
-// EnterR_string is called when production r_string is entered.
-func (s *BaseWdlV1_1ParserListener) EnterR_string(ctx *R_stringContext) {}
+// EnterWdl_string is called when production wdl_string is entered.
+func (s *BaseWdlV1_1ParserListener) EnterWdl_string(ctx *Wdl_stringContext) {}
 
-// ExitR_string is called when production r_string is exited.
-func (s *BaseWdlV1_1ParserListener) ExitR_string(ctx *R_stringContext) {}
+// ExitWdl_string is called when production wdl_string is exited.
+func (s *BaseWdlV1_1ParserListener) ExitWdl_string(ctx *Wdl_stringContext) {}
 
 // EnterPrimitive_literal is called when production primitive_literal is entered.
 func (s *BaseWdlV1_1ParserListener) EnterPrimitive_literal(ctx *Primitive_literalContext) {}
@@ -354,11 +354,11 @@ func (s *BaseWdlV1_1ParserListener) EnterImport_doc(ctx *Import_docContext) {}
 // ExitImport_doc is called when production import_doc is exited.
 func (s *BaseWdlV1_1ParserListener) ExitImport_doc(ctx *Import_docContext) {}
 
-// EnterR_struct is called when production r_struct is entered.
-func (s *BaseWdlV1_1ParserListener) EnterR_struct(ctx *R_structContext) {}
+// EnterWdl_struct is called when production wdl_struct is entered.
+func (s *BaseWdlV1_1ParserListener) EnterWdl_struct(ctx *Wdl_structContext) {}
 
-// ExitR_struct is called when production r_struct is exited.
-func (s *BaseWdlV1_1ParserListener) ExitR_struct(ctx *R_structContext) {}
+// ExitWdl_struct is called when production wdl_struct is exited.
+func (s *BaseWdlV1_1ParserListener) ExitWdl_struct(ctx *Wdl_structContext) {}
 
 // EnterMeta_value is called when production meta_value is entered.
 func (s *BaseWdlV1_1ParserListener) EnterMeta_value(ctx *Meta_valueContext) {}
