@@ -15,6 +15,7 @@ var commonCmpopts = cmp.Options{
 		importSpec{},
 		valueSpec{},
 		Call{},
+		expression{},
 		value{},
 	),
 	cmpopts.IgnoreFields(genNode{}, "parent"),
@@ -149,7 +150,7 @@ func TestWorkflowCall(t *testing.T) {
 	expectCalls := []*Call{
 		{
 			namedNode: namedNode{
-				genNode: genNode{start: 39, end: 150},
+				genNode: genNode{start: 39, end: 168},
 				name:    newIdentifier("Greeting", false),
 				alias:   "hello",
 			},
@@ -166,17 +167,23 @@ func TestWorkflowCall(t *testing.T) {
 					typ:     "",
 					value:   &exprRPN{value{String, "Luo"}},
 				},
+				{
+					genNode: genNode{start: 159, end: 161},
+					name:    newIdentifier("msg", true),
+					typ:     "",
+					value:   &exprRPN{newIdentifier("msg", true)},
+				},
 			},
 		},
 		{
 			namedNode: namedNode{
-				genNode: genNode{start: 156, end: 213},
+				genNode: genNode{start: 174, end: 231},
 				name:    newIdentifier("Goodbye", false),
 			},
 			After: "hello",
 			Inputs: []*valueSpec{
 				{
-					genNode: genNode{start: 190, end: 210},
+					genNode: genNode{start: 208, end: 228},
 					name:    newIdentifier("first_name", true),
 					typ:     "",
 					value:   &exprRPN{value{String, "Yunhai"}},
@@ -364,7 +371,7 @@ func TestTaskOutput(t *testing.T) {
 			genNode: genNode{start: 47, end: 73},
 			name:    newIdentifier("output_file", false),
 			typ:     "File",
-			value:   &exprRPN{},
+			value:   &newExpression(0, 0).rpn,
 		},
 	}
 	resultOutput := result.Tasks[0].Outputs

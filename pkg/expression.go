@@ -16,17 +16,25 @@ func (e *exprRPN) append(elem interface{}) {
 	*e = append(*e, elem)
 }
 
-func (e *exprRPN) extend(e2 *exprRPN) {
-	*e = append(*e, *e2...)
+type expression struct {
+	genNode
+	rpn      exprRPN
+	subExprs exprStack
 }
 
-type exprStack []*exprRPN
+func newExpression(start, end int) *expression {
+	return &expression{
+		genNode: genNode{start: start, end: end},
+	}
+}
 
-func (s *exprStack) push(e *exprRPN) {
+type exprStack []*expression
+
+func (s *exprStack) push(e *expression) {
 	*s = append(*s, e)
 }
 
-func (s *exprStack) pop() *exprRPN {
+func (s *exprStack) pop() *expression {
 	stackDepth := len(*s)
 	if stackDepth > 0 {
 		e := (*s)[stackDepth-1]
@@ -36,19 +44,6 @@ func (s *exprStack) pop() *exprRPN {
 	}
 	log.Fatalf("pop error: expression stack %v is empty", *s)
 	return nil
-}
-
-func (s *exprStack) front() *exprRPN {
-	stackDepth := len(*s)
-	if stackDepth > 0 {
-		return (*s)[stackDepth-1]
-	}
-	log.Fatalf("front error: expression stack %v is empty", *s)
-	return nil
-}
-
-func (s *exprStack) isEmpty() bool {
-	return len(*s) == 0
 }
 
 // A Type represents a type of WDL.
@@ -398,10 +393,17 @@ func logicalOr(lhs, rhs value) (value, error) {
 // Antlr4 listeners
 
 func (l *wdlv1_1Listener) EnterExpr(ctx *parser.ExprContext) {
-	l.astContext.exprStack = append(
-		l.astContext.exprStack,
-		&exprRPN{},
+	e := newExpression(
+		ctx.GetStart().GetStart(),
+		ctx.GetStop().GetStop(),
 	)
+	e.setParent(l.astContext.exprNode)
+	l.astContext.exprNode.subExprs.push(e)
+	l.astContext.exprNode = e
+}
+
+func (l *wdlv1_1Listener) ExitExpr(ctx *parser.ExprContext) {
+	l.astContext.exprNode = l.astContext.exprNode.getParent().(*expression)
 }
 
 func (l *wdlv1_1Listener) ExitPrimitive_literal(
@@ -412,7 +414,7 @@ func (l *wdlv1_1Listener) ExitPrimitive_literal(
 	if boolToken != nil {
 		v, e := newValue(Boolean, boolToken.GetText())
 		if e == nil {
-			l.astContext.exprStack.front().append(v)
+			l.astContext.exprNode.rpn.append(v)
 		} else {
 			log.Fatal(e)
 		}
@@ -424,7 +426,7 @@ func (l *wdlv1_1Listener) ExitPrimitive_literal(
 	if noneToken != nil {
 		v, e := newValue(Any, noneToken.GetText())
 		if e == nil {
-			l.astContext.exprStack.front().append(v)
+			l.astContext.exprNode.rpn.append(v)
 		} else {
 			log.Fatal(e)
 		}
@@ -435,7 +437,7 @@ func (l *wdlv1_1Listener) ExitPrimitive_literal(
 	// TODO: this should somehow point to the variable
 	identifierToken := ctx.Identifier()
 	if identifierToken != nil {
-		l.astContext.exprStack.front().append(
+		l.astContext.exprNode.rpn.append(
 			newIdentifier(identifierToken.GetText(), true),
 		)
 		return
@@ -448,7 +450,7 @@ func (l *wdlv1_1Listener) ExitNumber(ctx *parser.NumberContext) {
 	if intToken != nil {
 		v, e := newValue(Int, intToken.GetText())
 		if e == nil {
-			l.astContext.exprStack.front().append(v)
+			l.astContext.exprNode.rpn.append(v)
 		} else {
 			log.Fatal(e)
 		}
@@ -460,7 +462,7 @@ func (l *wdlv1_1Listener) ExitNumber(ctx *parser.NumberContext) {
 	if floatToken != nil {
 		v, e := newValue(Float, floatToken.GetText())
 		if e == nil {
-			l.astContext.exprStack.front().append(v)
+			l.astContext.exprNode.rpn.append(v)
 		} else {
 			log.Fatal(e)
 		}
@@ -473,7 +475,7 @@ func (l *wdlv1_1Listener) ExitNumber(ctx *parser.NumberContext) {
 func (l *wdlv1_1Listener) ExitString_part(ctx *parser.String_partContext) {
 	v, e := newValue(String, ctx.GetText())
 	if e == nil {
-		l.astContext.exprStack.front().append(v)
+		l.astContext.exprNode.rpn.append(v)
 	} else {
 		log.Fatal(e)
 	}
@@ -481,88 +483,88 @@ func (l *wdlv1_1Listener) ExitString_part(ctx *parser.String_partContext) {
 func (l *wdlv1_1Listener) ExitString_expr_part(
 	ctx *parser.String_expr_partContext,
 ) {
-	e := l.astContext.exprStack.pop()
-	l.astContext.exprStack.front().append(e)
+	e := l.astContext.exprNode.subExprs.pop()
+	l.astContext.exprNode.rpn.append(e)
 }
 
 func (l *wdlv1_1Listener) ExitString_expr_with_string_part(
 	ctx *parser.String_expr_with_string_partContext,
 ) {
 	// join expr and string within string_expr_with_string_part
-	l.astContext.exprStack.front().append(wdlAdd)
+	l.astContext.exprNode.rpn.append(wdlAdd)
 	// join others in wdl_string
-	l.astContext.exprStack.front().append(wdlAdd)
+	l.astContext.exprNode.rpn.append(wdlAdd)
 }
 
 func (l *wdlv1_1Listener) ExitLor(ctx *parser.LorContext) {
-	l.astContext.exprStack.front().append(wdlOr)
+	l.astContext.exprNode.rpn.append(wdlOr)
 }
 
 func (l *wdlv1_1Listener) ExitLand(ctx *parser.LandContext) {
-	l.astContext.exprStack.front().append(wdlAnd)
+	l.astContext.exprNode.rpn.append(wdlAnd)
 }
 
 func (l *wdlv1_1Listener) ExitEqeq(ctx *parser.EqeqContext) {
-	l.astContext.exprStack.front().append(wdlEq)
+	l.astContext.exprNode.rpn.append(wdlEq)
 }
 
 func (l *wdlv1_1Listener) ExitNeq(ctx *parser.NeqContext) {
-	l.astContext.exprStack.front().append(wdlNeq)
+	l.astContext.exprNode.rpn.append(wdlNeq)
 }
 
 func (l *wdlv1_1Listener) ExitLte(ctx *parser.LteContext) {
-	l.astContext.exprStack.front().append(wdlLte)
+	l.astContext.exprNode.rpn.append(wdlLte)
 }
 
 func (l *wdlv1_1Listener) ExitGte(ctx *parser.GteContext) {
-	l.astContext.exprStack.front().append(wdlGte)
+	l.astContext.exprNode.rpn.append(wdlGte)
 }
 
 func (l *wdlv1_1Listener) ExitLt(ctx *parser.LtContext) {
-	l.astContext.exprStack.front().append(wdlLt)
+	l.astContext.exprNode.rpn.append(wdlLt)
 }
 
 func (l *wdlv1_1Listener) ExitGt(ctx *parser.GtContext) {
-	l.astContext.exprStack.front().append(wdlGt)
+	l.astContext.exprNode.rpn.append(wdlGt)
 }
 
 func (l *wdlv1_1Listener) ExitAdd(ctx *parser.AddContext) {
-	l.astContext.exprStack.front().append(wdlAdd)
+	l.astContext.exprNode.rpn.append(wdlAdd)
 }
 
 func (l *wdlv1_1Listener) ExitSub(ctx *parser.SubContext) {
-	l.astContext.exprStack.front().append(wdlSub)
+	l.astContext.exprNode.rpn.append(wdlSub)
 }
 
 func (l *wdlv1_1Listener) ExitMul(ctx *parser.MulContext) {
-	l.astContext.exprStack.front().append(wdlMul)
+	l.astContext.exprNode.rpn.append(wdlMul)
 }
 
 func (l *wdlv1_1Listener) ExitDivide(ctx *parser.DivideContext) {
-	l.astContext.exprStack.front().append(wdlDiv)
+	l.astContext.exprNode.rpn.append(wdlDiv)
 }
 
 func (l *wdlv1_1Listener) ExitMod(ctx *parser.ModContext) {
-	l.astContext.exprStack.front().append(wdlMod)
+	l.astContext.exprNode.rpn.append(wdlMod)
 }
 
 func (l *wdlv1_1Listener) ExitNegate(ctx *parser.NegateContext) {
-	e := l.astContext.exprStack.pop()
-	l.astContext.exprStack.front().append(e)
-	l.astContext.exprStack.front().append(wdlNot)
+	e := l.astContext.exprNode.subExprs.pop()
+	l.astContext.exprNode.rpn.append(e)
+	l.astContext.exprNode.rpn.append(wdlNot)
 }
 
 func (l *wdlv1_1Listener) ExitExpression_group(
 	ctx *parser.Expression_groupContext,
 ) {
-	e := l.astContext.exprStack.pop()
-	l.astContext.exprStack.front().append(e)
+	e := l.astContext.exprNode.subExprs.pop()
+	l.astContext.exprNode.rpn.append(e)
 }
 
 func (l *wdlv1_1Listener) ExitUnarysigned(ctx *parser.UnarysignedContext) {
-	e := l.astContext.exprStack.pop()
-	l.astContext.exprStack.front().append(e)
+	e := l.astContext.exprNode.subExprs.pop()
+	l.astContext.exprNode.rpn.append(e)
 	if ctx.MINUS() != nil {
-		l.astContext.exprStack.front().append(wdlNeg)
+		l.astContext.exprNode.rpn.append(wdlNeg)
 	}
 }

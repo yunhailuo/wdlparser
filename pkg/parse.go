@@ -64,7 +64,7 @@ type wdlv1_1Listener struct {
 		workflowNode *Workflow
 		callNode     *Call
 		taskNode     *Task
-		exprStack    exprStack
+		exprNode     *expression
 	}
 }
 
@@ -133,7 +133,15 @@ func (l *wdlv1_1Listener) EnterImport_doc(ctx *parser.Import_docContext) {
 	l.wdl.Imports = append(l.wdl.Imports, l.astContext.importNode)
 	// Special case where import URI here uses wdl_string directly instead of
 	// through expression; so need to setup an exprRPN for wdl_string
-	l.astContext.exprStack.push(l.astContext.importNode.uri)
+	l.astContext.exprNode = newExpression(
+		ctx.GetStart().GetStart(),
+		ctx.GetStop().GetStop(),
+	)
+}
+
+func (l *wdlv1_1Listener) ExitImport_doc(ctx *parser.Import_docContext) {
+	l.astContext.importNode.uri = &l.astContext.exprNode.rpn
+	l.astContext.exprNode = nil
 }
 
 func (l *wdlv1_1Listener) ExitImport_as(ctx *parser.Import_asContext) {
@@ -183,6 +191,15 @@ func (l *wdlv1_1Listener) ExitCall_after(ctx *parser.Call_afterContext) {
 }
 
 func (l *wdlv1_1Listener) EnterCall_input(ctx *parser.Call_inputContext) {
+	if ctx.Expr() != nil {
+		l.astContext.exprNode = newExpression(
+			ctx.GetStart().GetStart(),
+			ctx.GetStop().GetStop(),
+		)
+	}
+}
+
+func (l *wdlv1_1Listener) ExitCall_input(ctx *parser.Call_inputContext) {
 	v := newValueSpec(
 		ctx.GetStart().GetStart(),
 		ctx.GetStop().GetStop(),
@@ -190,15 +207,13 @@ func (l *wdlv1_1Listener) EnterCall_input(ctx *parser.Call_inputContext) {
 		"",
 	)
 	v.name.isReference = true
-	l.astContext.callNode.Inputs = append(l.astContext.callNode.Inputs, v)
-	l.astContext.exprStack.push(v.value)
-}
-
-func (l *wdlv1_1Listener) ExitCall_input(ctx *parser.Call_inputContext) {
-	e := l.astContext.exprStack.pop()
-	if !l.astContext.exprStack.isEmpty() {
-		l.astContext.exprStack.front().extend(e)
+	if ctx.Expr() != nil {
+		v.value = &l.astContext.exprNode.subExprs.pop().rpn
+		l.astContext.exprNode = nil
+	} else {
+		v.value = &exprRPN{newIdentifier(ctx.Identifier().GetText(), true)}
 	}
+	l.astContext.callNode.Inputs = append(l.astContext.callNode.Inputs, v)
 }
 
 // Parse a task
@@ -223,21 +238,24 @@ func (l *wdlv1_1Listener) EnterTask_command(ctx *parser.Task_commandContext) {
 func (l *wdlv1_1Listener) EnterTask_runtime_kv(
 	ctx *parser.Task_runtime_kvContext,
 ) {
+	l.astContext.exprNode = newExpression(
+		ctx.GetStart().GetStart(),
+		ctx.GetStop().GetStop(),
+	)
+}
+
+func (l *wdlv1_1Listener) ExitTask_runtime_kv(
+	ctx *parser.Task_runtime_kvContext,
+) {
 	v := newValueSpec(
 		ctx.GetStart().GetStart(),
 		ctx.GetStop().GetStop(),
 		ctx.Identifier().GetText(),
 		"",
 	)
+	v.value = &l.astContext.exprNode.subExprs.pop().rpn
+	l.astContext.exprNode = nil
 	l.astContext.taskNode.Runtime = append(l.astContext.taskNode.Runtime, v)
-	l.astContext.exprStack.push(v.value)
-}
-
-func (l *wdlv1_1Listener) ExitTask_runtime_kv(
-	ctx *parser.Task_runtime_kvContext,
-) {
-	e := l.astContext.exprStack.pop()
-	l.astContext.exprStack.front().extend(e)
 }
 
 // Parse any declaration
@@ -261,12 +279,21 @@ func (l *wdlv1_1Listener) EnterUnbound_decls(ctx *parser.Unbound_declsContext) {
 }
 
 func (l *wdlv1_1Listener) EnterBound_decls(ctx *parser.Bound_declsContext) {
+	l.astContext.exprNode = newExpression(
+		ctx.GetStart().GetStart(),
+		ctx.GetStop().GetStop(),
+	)
+}
+
+func (l *wdlv1_1Listener) ExitBound_decls(ctx *parser.Bound_declsContext) {
 	n := newValueSpec(
 		ctx.GetStart().GetStart(),
 		ctx.GetStop().GetStop(),
 		ctx.Identifier().GetText(),
 		ctx.Wdl_type().GetText(),
 	)
+	n.value = &l.astContext.exprNode.subExprs.pop().rpn
+	l.astContext.exprNode = nil
 	// Try to figure out which section this valueSpec belongs to
 	switch {
 	case l.sectionStack.contains(wfl):
@@ -291,12 +318,6 @@ func (l *wdlv1_1Listener) EnterBound_decls(ctx *parser.Bound_declsContext) {
 	default:
 		l.wdl.Structs = append(l.wdl.Structs, n)
 	}
-	l.astContext.exprStack.push(n.value)
-}
-
-func (l *wdlv1_1Listener) ExitBound_decls(ctx *parser.Bound_declsContext) {
-	e := l.astContext.exprStack.pop()
-	l.astContext.exprStack.front().extend(e)
 }
 
 // Parse metadata

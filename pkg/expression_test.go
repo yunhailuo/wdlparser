@@ -63,10 +63,13 @@ func TestExpressionPlaceholder(t *testing.T) {
 			`version 1.1 workflow Test {input{String t="~{1 + i}"}}`,
 			exprRPN{
 				value{String, ""},
-				&exprRPN{
-					value{Int, int64(1)},
-					newIdentifier("i", true),
-					wdlAdd,
+				&expression{
+					genNode: genNode{start: 45, end: 49},
+					rpn: exprRPN{
+						value{Int, int64(1)},
+						newIdentifier("i", true),
+						wdlAdd,
+					},
 				},
 				value{String, ""},
 				wdlAdd,
@@ -78,15 +81,25 @@ func TestExpressionPlaceholder(t *testing.T) {
 				`{input{String t="grep '~{start}...~{end}' ~{file}"}}`,
 			exprRPN{
 				value{String, "grep '"},
-				&exprRPN{newIdentifier("start", true)},
+				&expression{
+					genNode: genNode{start: 51, end: 55},
+					rpn:     exprRPN{newIdentifier("start", true)},
+				},
+
 				value{String, "..."},
 				wdlAdd,
 				wdlAdd,
-				&exprRPN{newIdentifier("end", true)},
+				&expression{
+					genNode: genNode{start: 62, end: 64},
+					rpn:     exprRPN{newIdentifier("end", true)},
+				},
 				value{String, "' "},
 				wdlAdd,
 				wdlAdd,
-				&exprRPN{newIdentifier("file", true)},
+				&expression{
+					genNode: genNode{start: 70, end: 73},
+					rpn:     exprRPN{newIdentifier("file", true)},
+				},
 				value{String, ""},
 				wdlAdd,
 				wdlAdd,
@@ -114,11 +127,23 @@ func TestSinglePrimitiveExpression(t *testing.T) {
 	}{
 		{
 			"version 1.1 workflow Test {input{Int t=-3}}",
-			exprRPN{&exprRPN{value{Int, int64(3)}}, wdlNeg},
+			exprRPN{
+				&expression{
+					genNode: genNode{start: 40, end: 40},
+					rpn:     exprRPN{value{Int, int64(3)}},
+				},
+				wdlNeg,
+			},
 		},
 		{
 			"version 1.1 workflow Test {input{Boolean t=!true}}",
-			exprRPN{&exprRPN{value{Boolean, true}}, wdlNot},
+			exprRPN{
+				&expression{
+					genNode: genNode{start: 44, end: 47},
+					rpn:     exprRPN{value{Boolean, true}},
+				},
+				wdlNot,
+			},
 		},
 		{
 			"version 1.1 workflow Test {input{Int t=3.0/4.0}}",
@@ -200,11 +225,14 @@ func TestExpression(t *testing.T) {
 				value{Int, int64(4)},
 				value{Int, int64(2)},
 				wdlMul,
-				&exprRPN{value{Int, int64(1)},
-					value{Int, int64(5)},
-					value{Int, int64(2)},
-					wdlMul,
-					wdlSub,
+				&expression{
+					genNode: genNode{start: 46, end: 50},
+					rpn: exprRPN{value{Int, int64(1)},
+						value{Int, int64(5)},
+						value{Int, int64(2)},
+						wdlMul,
+						wdlSub,
+					},
 				},
 				wdlDiv,
 				wdlAdd,

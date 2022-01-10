@@ -4,7 +4,8 @@ workflow HelloWorld {
     call Greeting as hello {
         input:
             first_name = first_name,
-            last_name = "Luo"
+            last_name = "Luo",
+            msg,
     }
     call Goodbye after hello { input: first_name = "Yunhai", }
 }
