@@ -104,6 +104,7 @@ type wdlOpSym string
 const (
 	wdlNeg wdlOpSym = " -"
 	wdlNot wdlOpSym = "!"
+	wdlStr wdlOpSym = "str"
 	wdlMul wdlOpSym = "*"
 	wdlDiv wdlOpSym = "/"
 	wdlMod wdlOpSym = "%"
@@ -122,6 +123,7 @@ const (
 var Operations = map[wdlOpSym]interface{}{
 	wdlNeg: arithmeticNegation,
 	wdlNot: logicalNegation,
+	wdlStr: stringify,
 	wdlMul: multiplication,
 	wdlDiv: division,
 	wdlMod: modulo,
@@ -161,6 +163,10 @@ func logicalNegation(rhs value) (value, error) {
 			"logical negation doesn't support: %v of %T", v, v,
 		)
 	}
+}
+
+func stringify(rhs value) (value, error) {
+	return value{String, fmt.Sprint(rhs)}, nil
 }
 
 // Binary operators
@@ -485,6 +491,7 @@ func (l *wdlv1_1Listener) ExitString_expr_part(
 ) {
 	e := l.astContext.exprNode.subExprs.pop()
 	l.astContext.exprNode.rpn.append(e)
+	l.astContext.exprNode.rpn.append(wdlStr)
 }
 
 func (l *wdlv1_1Listener) ExitString_expr_with_string_part(
