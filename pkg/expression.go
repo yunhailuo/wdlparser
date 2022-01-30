@@ -97,22 +97,23 @@ func newValue(typ Type, raw string) (value, error) {
 type WDLOpSym string
 
 const (
-	WDLNeg WDLOpSym = "^-"
-	WDLNot WDLOpSym = "!"
-	WDLStr WDLOpSym = "str"
-	WDLMul WDLOpSym = "*"
-	WDLDiv WDLOpSym = "/"
-	WDLMod WDLOpSym = "%"
-	WDLAdd WDLOpSym = "+"
-	WDLSub WDLOpSym = "-"
-	WDLEq  WDLOpSym = "=="
-	WDLNeq WDLOpSym = "!="
-	WDLLt  WDLOpSym = "<"
-	WDLLte WDLOpSym = "<="
-	WDLGt  WDLOpSym = ">"
-	WDLGte WDLOpSym = ">="
-	WDLAnd WDLOpSym = "&&"
-	WDLOr  WDLOpSym = "||"
+	WDLNeg     WDLOpSym = "^-"
+	WDLNot     WDLOpSym = "!"
+	WDLStr     WDLOpSym = "str"
+	WDLMul     WDLOpSym = "*"
+	WDLDiv     WDLOpSym = "/"
+	WDLMod     WDLOpSym = "%"
+	WDLAdd     WDLOpSym = "+"
+	WDLSub     WDLOpSym = "-"
+	WDLEq      WDLOpSym = "=="
+	WDLNeq     WDLOpSym = "!="
+	WDLLt      WDLOpSym = "<"
+	WDLLte     WDLOpSym = "<="
+	WDLGt      WDLOpSym = ">"
+	WDLGte     WDLOpSym = ">="
+	WDLAnd     WDLOpSym = "&&"
+	WDLOr      WDLOpSym = "||"
+	WDLTernary WDLOpSym = "?:"
 )
 
 // Antlr4 listeners
@@ -293,4 +294,14 @@ func (l *wdlv1_1Listener) ExitUnarysigned(ctx *parser.UnarysignedContext) {
 	if ctx.MINUS() != nil {
 		l.astContext.exprNode.rpn.append(WDLNeg)
 	}
+}
+
+func (l *wdlv1_1Listener) ExitIfthenelse(ctx *parser.IfthenelseContext) {
+	e3 := l.astContext.exprNode.subExprs.pop()
+	e2 := l.astContext.exprNode.subExprs.pop()
+	e1 := l.astContext.exprNode.subExprs.pop()
+	l.astContext.exprNode.rpn.append(e1)
+	l.astContext.exprNode.rpn.append(e2)
+	l.astContext.exprNode.rpn.append(e3)
+	l.astContext.exprNode.rpn.append(WDLTernary)
 }

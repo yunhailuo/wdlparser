@@ -215,6 +215,77 @@ func TestSinglePrimitiveExpression(t *testing.T) {
 	}
 }
 
+func TestTernary(t *testing.T) {
+	testCases := []struct {
+		wdl  string
+		want interface{}
+	}{
+		{
+			`version 1.1 workflow Test {input{Int t = if array_length > 100 then 16 else 8}}`,
+			exprRPN{
+				&expression{
+					genNode: genNode{start: 44, end: 61},
+					rpn: exprRPN{
+						newIdentifier("array_length", true),
+						value{Int, int64(100)},
+						WDLGt,
+					},
+				},
+				&expression{
+					genNode: genNode{start: 68, end: 69},
+					rpn:     exprRPN{value{Int, int64(16)}},
+				},
+				&expression{
+					genNode: genNode{start: 76, end: 76},
+					rpn:     exprRPN{value{Int, int64(8)}},
+				},
+				WDLTernary,
+			},
+		},
+		{
+			`version 1.1 workflow Test {input{String t = "good ~{if morning then "morning" else "afternoon"}"}}`,
+			exprRPN{
+				value{String, "good "},
+				&expression{
+					genNode: genNode{start: 52, end: 93},
+					rpn: exprRPN{
+						&expression{
+							genNode: genNode{start: 55, end: 61},
+							rpn:     exprRPN{newIdentifier("morning", true)},
+						},
+						&expression{
+							genNode: genNode{start: 68, end: 76},
+							rpn:     exprRPN{value{String, "morning"}},
+						},
+						&expression{
+							genNode: genNode{start: 83, end: 93},
+							rpn:     exprRPN{value{String, "afternoon"}},
+						},
+						WDLTernary,
+					},
+					subExprs: exprStack{},
+				},
+				WDLStr,
+				value{String, ""},
+				WDLAdd,
+				WDLAdd,
+			},
+		},
+	}
+	for _, tc := range testCases {
+		result, err := Antlr4Parse(tc.wdl)
+		if err != nil {
+			t.Errorf(
+				"Found %d errors in %q, expect no errors", len(err), tc.wdl,
+			)
+		}
+		v := *result.Workflow.Inputs[0].value
+		if diff := cmp.Diff(tc.want, v, commonCmpopts...); diff != "" {
+			t.Errorf("unexpected workflow calls:\n%s", diff)
+		}
+	}
+}
+
 func TestExpression(t *testing.T) {
 	testCases := []struct {
 		wdl  string
