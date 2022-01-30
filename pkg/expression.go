@@ -3,7 +3,6 @@ package wdlparser
 import (
 	"fmt"
 	"log"
-	"math"
 	"strconv"
 
 	parser "github.com/yunhailuo/wdlparser/pkg/antlr4_grammar/1_1"
@@ -93,308 +92,28 @@ func newValue(typ Type, raw string) (value, error) {
 	return *v, e
 }
 
-func newNone() value {
-	return value{Any, nil}
-}
-
 // Operators
 
-type wdlOpSym string
+type WDLOpSym string
 
 const (
-	wdlNeg wdlOpSym = " -"
-	wdlNot wdlOpSym = "!"
-	wdlStr wdlOpSym = "str"
-	wdlMul wdlOpSym = "*"
-	wdlDiv wdlOpSym = "/"
-	wdlMod wdlOpSym = "%"
-	wdlAdd wdlOpSym = "+"
-	wdlSub wdlOpSym = "-"
-	wdlEq  wdlOpSym = "=="
-	wdlNeq wdlOpSym = "!="
-	wdlLt  wdlOpSym = "<"
-	wdlLte wdlOpSym = "<="
-	wdlGt  wdlOpSym = ">"
-	wdlGte wdlOpSym = ">="
-	wdlAnd wdlOpSym = "&&"
-	wdlOr  wdlOpSym = "||"
+	WDLNeg WDLOpSym = "^-"
+	WDLNot WDLOpSym = "!"
+	WDLStr WDLOpSym = "str"
+	WDLMul WDLOpSym = "*"
+	WDLDiv WDLOpSym = "/"
+	WDLMod WDLOpSym = "%"
+	WDLAdd WDLOpSym = "+"
+	WDLSub WDLOpSym = "-"
+	WDLEq  WDLOpSym = "=="
+	WDLNeq WDLOpSym = "!="
+	WDLLt  WDLOpSym = "<"
+	WDLLte WDLOpSym = "<="
+	WDLGt  WDLOpSym = ">"
+	WDLGte WDLOpSym = ">="
+	WDLAnd WDLOpSym = "&&"
+	WDLOr  WDLOpSym = "||"
 )
-
-var Operations = map[wdlOpSym]interface{}{
-	wdlNeg: arithmeticNegation,
-	wdlNot: logicalNegation,
-	wdlStr: stringify,
-	wdlMul: multiplication,
-	wdlDiv: division,
-	wdlMod: modulo,
-	wdlAdd: addition,
-	wdlSub: subtraction,
-	wdlEq:  equality,
-	wdlNeq: inequality,
-	wdlLt:  less,
-	wdlLte: lessEqual,
-	wdlGt:  greater,
-	wdlGte: greaterEqual,
-	wdlAnd: logicalAnd,
-	wdlOr:  logicalOr,
-}
-
-// Unary operators
-
-func arithmeticNegation(rhs value) (value, error) {
-	switch v := rhs.govalue.(type) {
-	case float64:
-		return value{Float, -v}, nil
-	case int64:
-		return value{Int, -v}, nil
-	default:
-		return newNone(), fmt.Errorf(
-			"arithmetic negation doesn't support: %v of %T", v, v,
-		)
-	}
-}
-
-func logicalNegation(rhs value) (value, error) {
-	switch v := rhs.govalue.(type) {
-	case bool:
-		return value{Boolean, !v}, nil
-	default:
-		return newNone(), fmt.Errorf(
-			"logical negation doesn't support: %v of %T", v, v,
-		)
-	}
-}
-
-func stringify(rhs value) (value, error) {
-	return value{String, fmt.Sprint(rhs)}, nil
-}
-
-// Binary operators
-
-func generalBinaryOp(lhs, rhs value, op wdlOpSym) (value, error) {
-	typePair := [2]Type{lhs.typ, rhs.typ}
-	switch {
-	case typePair == [2]Type{Boolean, Boolean}:
-		l := lhs.govalue.(bool)
-		r := rhs.govalue.(bool)
-		switch op {
-		case wdlEq:
-			return value{Boolean, l == r}, nil
-		case wdlNeq:
-			return value{Boolean, l != r}, nil
-		case wdlLt:
-			return value{
-				Boolean, strconv.FormatBool(l) < strconv.FormatBool(r),
-			}, nil
-		case wdlLte:
-			return value{
-				Boolean, strconv.FormatBool(l) <= strconv.FormatBool(r),
-			}, nil
-		case wdlGt:
-			return value{
-				Boolean, strconv.FormatBool(l) > strconv.FormatBool(r),
-			}, nil
-		case wdlGte:
-			return value{
-				Boolean, strconv.FormatBool(l) >= strconv.FormatBool(r),
-			}, nil
-		case wdlAnd:
-			return value{Boolean, l && r}, nil
-		case wdlOr:
-			return value{Boolean, l || r}, nil
-		default:
-			return newNone(), fmt.Errorf(
-				"%v doesn't support: %v and %v", op, lhs.typ, rhs.typ,
-			)
-		}
-	case typePair == [2]Type{Int, Int}:
-		l := lhs.govalue.(int64)
-		r := rhs.govalue.(int64)
-		switch op {
-		case wdlMul:
-			return value{Int, l * r}, nil
-		case wdlDiv:
-			return value{Int, l / r}, nil
-		case wdlMod:
-			return value{Int, l % r}, nil
-		case wdlAdd:
-			return value{Int, l + r}, nil
-		case wdlSub:
-			return value{Int, l - r}, nil
-		case wdlEq:
-			return value{Boolean, l == r}, nil
-		case wdlNeq:
-			return value{Boolean, l != r}, nil
-		case wdlLt:
-			return value{Boolean, l < r}, nil
-		case wdlLte:
-			return value{Boolean, l <= r}, nil
-		case wdlGt:
-			return value{Boolean, l > r}, nil
-		case wdlGte:
-			return value{Boolean, l >= r}, nil
-		default:
-			return newNone(), fmt.Errorf(
-				"%v doesn't support: %v and %v", op, lhs.typ, rhs.typ,
-			)
-		}
-	case typePair == [2]Type{Float, Float}, typePair == [2]Type{Int, Float},
-		typePair == [2]Type{Float, Int}:
-		var l, r float64
-		var lFloat, rFloat bool
-		l, lFloat = lhs.govalue.(float64)
-		if !lFloat {
-			l = float64(lhs.govalue.(int64))
-		}
-		r, rFloat = rhs.govalue.(float64)
-		if !rFloat {
-			r = float64(rhs.govalue.(int64))
-		}
-		switch op {
-		case wdlMul:
-			return value{Float, l * r}, nil
-		case wdlDiv:
-			return value{Float, l / r}, nil
-		case wdlMod:
-			return value{Float, math.Mod(l, r)}, nil
-		case wdlAdd:
-			return value{Float, l + r}, nil
-		case wdlSub:
-			return value{Float, l - r}, nil
-		case wdlEq:
-			return value{Boolean, l == r}, nil
-		case wdlNeq:
-			return value{Boolean, l != r}, nil
-		case wdlLt:
-			return value{Boolean, l < r}, nil
-		case wdlLte:
-			return value{Boolean, l <= r}, nil
-		case wdlGt:
-			return value{Boolean, l > r}, nil
-		case wdlGte:
-			return value{Boolean, l >= r}, nil
-		default:
-			return newNone(), fmt.Errorf(
-				"%v doesn't support: %v and %v", op, lhs.typ, rhs.typ,
-			)
-		}
-	case typePair == [2]Type{String, String}:
-		l := lhs.govalue.(string)
-		r := rhs.govalue.(string)
-		switch op {
-		case wdlAdd:
-			return value{String, l + r}, nil
-		case wdlEq:
-			return value{Boolean, l == r}, nil
-		case wdlNeq:
-			return value{Boolean, l != r}, nil
-		case wdlLt:
-			return value{Boolean, l < r}, nil
-		case wdlLte:
-			return value{Boolean, l <= r}, nil
-		case wdlGt:
-			return value{Boolean, l > r}, nil
-		case wdlGte:
-			return value{Boolean, l >= r}, nil
-		default:
-			return newNone(), fmt.Errorf(
-				"%v doesn't support: %v and %v", op, lhs.typ, rhs.typ,
-			)
-		}
-	case typePair == [2]Type{String, Int}, typePair == [2]Type{Int, String},
-		typePair == [2]Type{String, Float}, typePair == [2]Type{Float, String}:
-		var l, r string
-		switch lhs.typ {
-		case Int:
-			l = strconv.FormatInt(lhs.govalue.(int64), 10)
-		case Float:
-			l = strconv.FormatFloat(lhs.govalue.(float64), 'G', -1, 64)
-		case String:
-			l = lhs.govalue.(string)
-		}
-		switch rhs.typ {
-		case Int:
-			r = strconv.FormatInt(rhs.govalue.(int64), 10)
-		case Float:
-			r = strconv.FormatFloat(rhs.govalue.(float64), 'G', -1, 64)
-		case String:
-			r = rhs.govalue.(string)
-		}
-		switch op {
-		case wdlAdd:
-			return value{String, l + r}, nil
-		default:
-			return newNone(), fmt.Errorf(
-				"%v doesn't support: %v and %v", op, lhs.typ, rhs.typ,
-			)
-		}
-	case typePair == [2]Type{String, File}, typePair == [2]Type{File, String},
-		typePair == [2]Type{File, File}:
-		l := lhs.govalue.(string)
-		r := rhs.govalue.(string)
-		switch op {
-		case wdlAdd:
-			return value{File, l + r}, nil
-		case wdlEq:
-			return value{Boolean, l == r}, nil
-		case wdlNeq:
-			return value{Boolean, l != r}, nil
-		default:
-			return newNone(), fmt.Errorf(
-				"%v doesn't support: %v and %v", op, lhs.typ, rhs.typ,
-			)
-		}
-	default:
-		return newNone(), fmt.Errorf(
-			"operation %v doesn't support: %v and %v in generalBinaryOp",
-			op, lhs.typ, rhs.typ,
-		)
-	}
-}
-
-func multiplication(lhs, rhs value) (value, error) {
-	return generalBinaryOp(lhs, rhs, wdlMul)
-}
-
-func division(lhs, rhs value) (value, error) {
-	return generalBinaryOp(lhs, rhs, wdlDiv)
-}
-
-func modulo(lhs, rhs value) (value, error) {
-	return generalBinaryOp(lhs, rhs, wdlMod)
-}
-func addition(lhs, rhs value) (value, error) {
-	return generalBinaryOp(lhs, rhs, wdlAdd)
-}
-
-func subtraction(lhs, rhs value) (value, error) {
-	return generalBinaryOp(lhs, rhs, wdlSub)
-}
-
-func equality(lhs, rhs value) (value, error) {
-	return generalBinaryOp(lhs, rhs, wdlEq)
-}
-func inequality(lhs, rhs value) (value, error) {
-	return generalBinaryOp(lhs, rhs, wdlNeq)
-}
-func less(lhs, rhs value) (value, error) {
-	return generalBinaryOp(lhs, rhs, wdlLt)
-}
-func lessEqual(lhs, rhs value) (value, error) {
-	return generalBinaryOp(lhs, rhs, wdlLte)
-}
-func greater(lhs, rhs value) (value, error) {
-	return generalBinaryOp(lhs, rhs, wdlGt)
-}
-func greaterEqual(lhs, rhs value) (value, error) {
-	return generalBinaryOp(lhs, rhs, wdlGte)
-}
-func logicalAnd(lhs, rhs value) (value, error) {
-	return generalBinaryOp(lhs, rhs, wdlAnd)
-}
-func logicalOr(lhs, rhs value) (value, error) {
-	return generalBinaryOp(lhs, rhs, wdlOr)
-}
 
 // Antlr4 listeners
 
@@ -491,74 +210,74 @@ func (l *wdlv1_1Listener) ExitString_expr_part(
 ) {
 	e := l.astContext.exprNode.subExprs.pop()
 	l.astContext.exprNode.rpn.append(e)
-	l.astContext.exprNode.rpn.append(wdlStr)
+	l.astContext.exprNode.rpn.append(WDLStr)
 }
 
 func (l *wdlv1_1Listener) ExitString_expr_with_string_part(
 	ctx *parser.String_expr_with_string_partContext,
 ) {
 	// join expr and string within string_expr_with_string_part
-	l.astContext.exprNode.rpn.append(wdlAdd)
+	l.astContext.exprNode.rpn.append(WDLAdd)
 	// join others in wdl_string
-	l.astContext.exprNode.rpn.append(wdlAdd)
+	l.astContext.exprNode.rpn.append(WDLAdd)
 }
 
 func (l *wdlv1_1Listener) ExitLor(ctx *parser.LorContext) {
-	l.astContext.exprNode.rpn.append(wdlOr)
+	l.astContext.exprNode.rpn.append(WDLOr)
 }
 
 func (l *wdlv1_1Listener) ExitLand(ctx *parser.LandContext) {
-	l.astContext.exprNode.rpn.append(wdlAnd)
+	l.astContext.exprNode.rpn.append(WDLAnd)
 }
 
 func (l *wdlv1_1Listener) ExitEqeq(ctx *parser.EqeqContext) {
-	l.astContext.exprNode.rpn.append(wdlEq)
+	l.astContext.exprNode.rpn.append(WDLEq)
 }
 
 func (l *wdlv1_1Listener) ExitNeq(ctx *parser.NeqContext) {
-	l.astContext.exprNode.rpn.append(wdlNeq)
+	l.astContext.exprNode.rpn.append(WDLNeq)
 }
 
 func (l *wdlv1_1Listener) ExitLte(ctx *parser.LteContext) {
-	l.astContext.exprNode.rpn.append(wdlLte)
+	l.astContext.exprNode.rpn.append(WDLLte)
 }
 
 func (l *wdlv1_1Listener) ExitGte(ctx *parser.GteContext) {
-	l.astContext.exprNode.rpn.append(wdlGte)
+	l.astContext.exprNode.rpn.append(WDLGte)
 }
 
 func (l *wdlv1_1Listener) ExitLt(ctx *parser.LtContext) {
-	l.astContext.exprNode.rpn.append(wdlLt)
+	l.astContext.exprNode.rpn.append(WDLLt)
 }
 
 func (l *wdlv1_1Listener) ExitGt(ctx *parser.GtContext) {
-	l.astContext.exprNode.rpn.append(wdlGt)
+	l.astContext.exprNode.rpn.append(WDLGt)
 }
 
 func (l *wdlv1_1Listener) ExitAdd(ctx *parser.AddContext) {
-	l.astContext.exprNode.rpn.append(wdlAdd)
+	l.astContext.exprNode.rpn.append(WDLAdd)
 }
 
 func (l *wdlv1_1Listener) ExitSub(ctx *parser.SubContext) {
-	l.astContext.exprNode.rpn.append(wdlSub)
+	l.astContext.exprNode.rpn.append(WDLSub)
 }
 
 func (l *wdlv1_1Listener) ExitMul(ctx *parser.MulContext) {
-	l.astContext.exprNode.rpn.append(wdlMul)
+	l.astContext.exprNode.rpn.append(WDLMul)
 }
 
 func (l *wdlv1_1Listener) ExitDivide(ctx *parser.DivideContext) {
-	l.astContext.exprNode.rpn.append(wdlDiv)
+	l.astContext.exprNode.rpn.append(WDLDiv)
 }
 
 func (l *wdlv1_1Listener) ExitMod(ctx *parser.ModContext) {
-	l.astContext.exprNode.rpn.append(wdlMod)
+	l.astContext.exprNode.rpn.append(WDLMod)
 }
 
 func (l *wdlv1_1Listener) ExitNegate(ctx *parser.NegateContext) {
 	e := l.astContext.exprNode.subExprs.pop()
 	l.astContext.exprNode.rpn.append(e)
-	l.astContext.exprNode.rpn.append(wdlNot)
+	l.astContext.exprNode.rpn.append(WDLNot)
 }
 
 func (l *wdlv1_1Listener) ExitExpression_group(
@@ -572,6 +291,6 @@ func (l *wdlv1_1Listener) ExitUnarysigned(ctx *parser.UnarysignedContext) {
 	e := l.astContext.exprNode.subExprs.pop()
 	l.astContext.exprNode.rpn.append(e)
 	if ctx.MINUS() != nil {
-		l.astContext.exprNode.rpn.append(wdlNeg)
+		l.astContext.exprNode.rpn.append(WDLNeg)
 	}
 }
